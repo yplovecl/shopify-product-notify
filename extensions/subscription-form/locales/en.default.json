@@ -1,0 +1,8 @@
+{
+  "heading": "订阅新品通知",
+  "email_placeholder": "输入邮箱",
+  "button": "订阅",
+  "success": "订阅成功",
+  "failed": "订阅失败，请稍后重试",
+  "network_error": "网络错误，请稍后重试"
+}

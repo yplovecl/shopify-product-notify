@@ -1,0 +1,52 @@
+<div class="npn-wrap" {{ block.shopify_attributes }}>
+  {% if block.settings.heading != blank %}
+    <h2 class="npn-heading">{{ block.settings.heading }}</h2>
+  {% endif %}
+  <form
+    id="sub-form-{{ block.id }}"
+    class="npn-form"
+    data-proxy-path="{{ block.settings.proxy_path | escape }}"
+  >
+    <input type="hidden" name="shop" value="{{ shop.permanent_domain }}">
+    <input
+      type="email"
+      name="email"
+      required
+      autocomplete="email"
+      placeholder="输入邮箱"
+      aria-label="输入邮箱"
+    >
+    <button type="submit">{{ block.settings.button_label }}</button>
+    <p class="npn-message" data-npn-message hidden></p>
+  </form>
+</div>
+
+{% schema %}
+{
+  "name": "新品订阅",
+  "target": "section",
+  "stylesheet": "subscription-form.css",
+  "javascript": "subscription-form.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "标题",
+      "default": "订阅新品通知"
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "按钮文字",
+      "default": "订阅"
+    },
+    {
+      "type": "text",
+      "id": "proxy_path",
+      "label": "订阅接口路径",
+      "default": "/apps/subscribe",
+      "info": "需与 shopify.app.toml 中 App Proxy 的 prefix 和 subpath 一致。"
+    }
+  ]
+}
+{% endschema %}
