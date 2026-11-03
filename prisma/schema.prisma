@@ -41,3 +41,10 @@ model Subscriber {
 
   @@unique([shop, email]) // 同一店铺邮箱不重复
 }
+
+model ShopSender {
+  shop      String   @id
+  fromName  String   @default("")
+  fromEmail String
+  updatedAt DateTime @updatedAt
+}

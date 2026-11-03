@@ -1,9 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Prisma } from "@prisma/client";
-import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { normalizeEmail } from "../email";
+import { authenticate } from "../shopify.server";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
 function json(body: { success: boolean; message: string }, status = 200) {
@@ -65,9 +65,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ success: false, message: "无法读取表单" }, 400);
   }
 
-  const emailField = formData.get("email");
   const shopField = formData.get("shop");
-  const email = typeof emailField === "string" ? emailField.trim().toLowerCase() : "";
+  const email = normalizeEmail(formData.get("email"));
   const shop =
     trustedShop ??
     readShop(
@@ -80,7 +79,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ success: false, message: "无法识别店铺" }, 400);
   }
 
-  if (!email || email.length > 254 || !EMAIL_RE.test(email)) {
+  if (!email) {
     return json({ success: false, message: "邮箱格式不正确" }, 400);
   }
 

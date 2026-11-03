@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
+import db, { deleteShopRecords } from "../db.server";
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, session, topic } = await authenticate.webhook(request);
@@ -13,7 +13,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.session.deleteMany({ where: { shop } });
   }
 
-  await db.subscriber.deleteMany({ where: { shop } });
+  await deleteShopRecords(shop);
 
   return new Response();
 };

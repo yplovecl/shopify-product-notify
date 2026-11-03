@@ -1,7 +1,5 @@
 import { Resend } from "resend";
 
-export { NewProductNotification } from "./emails/NewProductNotification";
-
 let client: Resend | null = null;
 
 export function getResend() {
@@ -9,8 +7,4 @@ export function getResend() {
   if (!apiKey) return null;
   if (!client) client = new Resend(apiKey);
   return client;
-}
-
-export function getResendFromAddress() {
-  return process.env.RESEND_FROM_EMAIL?.trim() ?? "";
 }

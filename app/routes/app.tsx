@@ -25,6 +25,7 @@ export default function App() {
           首页
         </Link>
         <Link to="/app/subscribers">订阅者</Link>
+        <Link to="/app/settings">发件设置</Link>
         <Link to="/app/notify">发送通知</Link>
       </NavMenu>
       <Outlet />

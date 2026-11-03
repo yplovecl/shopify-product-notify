@@ -13,13 +13,11 @@ import {
   Thumbnail,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
+import { NewProductNotification } from "../emails/NewProductNotification";
+import { formatFromAddress } from "../email";
 import db from "../db.server";
-import {
-  getResend,
-  getResendFromAddress,
-  NewProductNotification,
-} from "../resend.server";
+import { getResend } from "../resend.server";
+import { authenticate } from "../shopify.server";
 
 const SEND_INTERVAL_MS = 600;
 
@@ -61,6 +59,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function rejected(message: string): NotifyResult {
+  return { ok: false, sent: 0, failed: 0, message };
+}
+
 function productUrlFor(
   shop: string,
   product: { handle: string; onlineStoreUrl: string | null },
@@ -78,9 +80,10 @@ function productUrlFor(
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const subscriberCount = await db.subscriber.count({
-    where: { shop: session.shop },
-  });
+  const [subscriberCount, sender] = await Promise.all([
+    db.subscriber.count({ where: { shop: session.shop } }),
+    db.shopSender.findUnique({ where: { shop: session.shop } }),
+  ]);
 
   const response = await admin.graphql(
     `#graphql
@@ -102,9 +105,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     products: payload.data?.products?.nodes ?? [],
     subscriberCount,
-    resendConfigured: Boolean(
-      process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL,
-    ),
+    apiKeyConfigured: Boolean(process.env.RESEND_API_KEY),
+    fromLabel: sender
+      ? formatFromAddress(sender.fromName, sender.fromEmail)
+      : "",
     error: payload.errors?.map((item) => item.message).join("; ") ?? null,
   };
 };
@@ -119,19 +123,21 @@ export const action = async ({
     typeof productIdField === "string" ? productIdField : "";
 
   if (!productId.startsWith("gid://shopify/Product/")) {
-    return { ok: false, sent: 0, failed: 0, message: "请选择要通知的商品" };
+    return rejected("请选择要通知的商品");
   }
 
-  const from = getResendFromAddress();
   const resend = getResend();
-  if (!resend || !from) {
-    return {
-      ok: false,
-      sent: 0,
-      failed: 0,
-      message: "请先配置 RESEND_API_KEY 和 RESEND_FROM_EMAIL",
-    };
+  if (!resend) {
+    return rejected("服务器尚未配置 RESEND_API_KEY");
   }
+
+  const sender = await db.shopSender.findUnique({
+    where: { shop: session.shop },
+  });
+  if (!sender) {
+    return rejected("请先在「发件设置」填写本店发件人");
+  }
+  const from = formatFromAddress(sender.fromName, sender.fromEmail);
 
   const response = await admin.graphql(
     `#graphql
@@ -153,22 +159,17 @@ export const action = async ({
   const payload = (await response.json()) as ProductQuery;
 
   if (payload.errors?.length) {
-    return {
-      ok: false,
-      sent: 0,
-      failed: 0,
-      message: payload.errors.map((item) => item.message).join("; "),
-    };
+    return rejected(payload.errors.map((item) => item.message).join("; "));
   }
 
   const product = payload.data?.product;
   if (!product) {
-    return { ok: false, sent: 0, failed: 0, message: "找不到该商品" };
+    return rejected("找不到该商品");
   }
 
   const productUrl = productUrlFor(session.shop, product);
   if (!productUrl) {
-    return { ok: false, sent: 0, failed: 0, message: "无法生成商品链接" };
+    return rejected("无法生成商品链接");
   }
 
   const subscribers = await db.subscriber.findMany({
@@ -178,12 +179,7 @@ export const action = async ({
   });
 
   if (subscribers.length === 0) {
-    return {
-      ok: false,
-      sent: 0,
-      failed: 0,
-      message: "当前店铺还没有订阅者",
-    };
+    return rejected("当前店铺还没有订阅者");
   }
 
   const shopName = payload.data?.shop?.name || session.shop;
@@ -236,8 +232,9 @@ export const action = async ({
 };
 
 export default function NotifyPage() {
-  const { products, subscriberCount, resendConfigured, error } =
+  const { products, subscriberCount, apiKeyConfigured, fromLabel, error } =
     useLoaderData<typeof loader>();
+  const canSend = apiKeyConfigured && Boolean(fromLabel);
   const fetcher = useFetcher<typeof action>();
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const selected = products.find((product) => product.id === productId);
@@ -251,9 +248,19 @@ export default function NotifyPage() {
     >
       <TitleBar title="发送新品通知" />
       <BlockStack gap="400">
-        {!resendConfigured && (
+        {!apiKeyConfigured && (
           <Banner tone="warning">
-            <p>尚未配置 RESEND_API_KEY 或 RESEND_FROM_EMAIL，暂时不能发信。</p>
+            <p>服务器尚未配置 RESEND_API_KEY，暂时不能发信。</p>
+          </Banner>
+        )}
+        {apiKeyConfigured && !fromLabel && (
+          <Banner tone="warning">
+            <p>请先在「发件设置」填写本店的发件名称和邮箱。</p>
+          </Banner>
+        )}
+        {fromLabel && (
+          <Banner tone="info">
+            <p>本店将以 {fromLabel} 发信，不会使用其他店铺的发件人。</p>
           </Banner>
         )}
         {error && (
@@ -315,9 +322,7 @@ export default function NotifyPage() {
                 variant="primary"
                 submit
                 loading={submitting}
-                disabled={
-                  !productId || subscriberCount === 0 || !resendConfigured
-                }
+                disabled={!productId || subscriberCount === 0 || !canSend}
               >
                 发送通知
               </Button>

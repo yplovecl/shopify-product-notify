@@ -12,4 +12,11 @@ if (process.env.NODE_ENV !== "production") {
 
 const prisma = global.prismaGlobal ?? new PrismaClient();
 
+export function deleteShopRecords(shop: string) {
+  return prisma.$transaction([
+    prisma.subscriber.deleteMany({ where: { shop } }),
+    prisma.shopSender.deleteMany({ where: { shop } }),
+  ]);
+}
+
 export default prisma;
