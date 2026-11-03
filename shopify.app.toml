@@ -2,7 +2,7 @@
 
 client_id = "138640c12f8f3398d3df8257780d4bde"
 name = "product-notify"
-application_url = "https://311659790a98d4.lhr.life"
+application_url = "https://a11784eec4aff9.lhr.life"
 embedded = true
 
 [build]
@@ -37,9 +37,9 @@ scopes = "read_products,write_app_proxy"
 
 [auth]
 redirect_urls = [
-  "https://311659790a98d4.lhr.life/auth/callback",
-  "https://311659790a98d4.lhr.life/auth/shopify/callback",
-  "https://311659790a98d4.lhr.life/api/auth/callback"
+  "https://a11784eec4aff9.lhr.life/auth/callback",
+  "https://a11784eec4aff9.lhr.life/auth/shopify/callback",
+  "https://a11784eec4aff9.lhr.life/api/auth/callback"
 ]
 
 [app_proxy]
