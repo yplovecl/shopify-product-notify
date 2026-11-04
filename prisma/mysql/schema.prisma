@@ -1,0 +1,47 @@
+// 线上 MariaDB。本地开发用 prisma/schema.prisma（SQLite），不要用这个文件跑 pnpm dev。
+// 生成与迁移：pnpm run setup:production
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?   @db.Text
+  expires             DateTime?
+  accessToken         String    @db.Text
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?   @db.VarChar(254)
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?   @db.Text
+  refreshTokenExpires DateTime?
+}
+
+model Subscriber {
+  id        Int      @id @default(autoincrement())
+  shop      String
+  email     String   @db.VarChar(254)
+  createdAt DateTime @default(now())
+
+  @@unique([shop, email])
+}
+
+model ShopSender {
+  shop      String   @id
+  fromName  String   @default("")
+  fromEmail String   @db.VarChar(254)
+  updatedAt DateTime @updatedAt
+}

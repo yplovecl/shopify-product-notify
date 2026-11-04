@@ -8,7 +8,7 @@
 - 商家在 Shopify 后台选择一个在售商品，一键给本店所有订阅者发送新品邮件。
 - 每家店铺使用自己的发件人，订阅者与发件人数据按店铺隔离。
 
-技术栈：Remix、Polaris 12、App Bridge 4、Prisma（SQLite）、Resend（发邮件）、React Email（邮件模板）、主题应用扩展（前台订阅区块）、App Proxy（前台到应用的通道）。
+技术栈：Remix、Polaris 12、App Bridge 4、Prisma（本地 SQLite，线上 MariaDB）、Resend（发邮件）、React Email（邮件模板）、主题应用扩展（前台订阅区块）、App Proxy（前台到应用的通道）。
 
 ## 2. 功能清单
 
@@ -47,7 +47,7 @@ flowchart LR
         W["webhooks 生命周期与合规"]
     end
 
-    subgraph DB["SQLite 数据库"]
+    subgraph DB["数据库（本地 SQLite，线上 MariaDB）"]
         T1[("Subscriber 订阅者")]
         T2[("ShopSender 发件人")]
         T3[("Session 会话")]
@@ -303,6 +303,7 @@ flowchart TD
 | 变量 | 来源 | 说明 |
 | --- | --- | --- |
 | `SHOPIFY_API_KEY`、`SHOPIFY_API_SECRET`、`SCOPES`、`SHOPIFY_APP_URL` | `shopify app dev` 自动写入 | 应用身份与地址 |
+| `DATABASE_URL` | 仅线上填写 | MariaDB 连接串，格式 `mysql://用户:密码@主机:3306/库名`。本地开发不使用 |
 | `RESEND_API_KEY` | 手动填写，在 https://resend.com/api-keys 创建 | 缺失时发送通知会被拒绝 |
 
 发件名称和邮箱不放在环境变量里，由各店铺在「发件设置」里单独保存。
@@ -327,7 +328,8 @@ pnpm install
 pnpm dev          # 即 shopify app dev，会启动隧道、Vite 与代理
 ```
 
-- 数据库为 SQLite（`prisma/dev.sqlite`），首次启动会自动应用迁移。
+- 本地数据库是 SQLite（`prisma/dev.sqlite`）。`pnpm dev` 会用 `prisma/schema.prisma` 执行迁移。
+- 线上用 MariaDB：设置 `DATABASE_URL`，启动前执行 `pnpm run setup:production`（schema 在 `prisma/mysql/schema.prisma`）。
 - `shopify app dev` 默认使用 Cloudflare 临时隧道，每次重启地址都会变，重启后需要在 Shopify 后台刷新应用页面。
 - 开发预览的地址由 CLI 自动更新到应用配置里，无需手动修改 `shopify.app.toml`。
 
@@ -338,4 +340,4 @@ pnpm dev          # 即 shopify app dev，会启动隧道、Vite 与代理
 - 没有退订功能，邮件中也没有退订链接。
 - 没有「发送记录」，发送结果只在当次页面提示，失败的详情只写在服务端日志里。
 - `customers/data_request` 只记录日志，不会向顾客返回数据。
-- 数据库是 SQLite，适合开发和小规模使用，上线到多实例环境前需要换成托管数据库。
+- 线上多实例要共用同一台 MariaDB。本地 SQLite 文件不能拿到生产环境用。
