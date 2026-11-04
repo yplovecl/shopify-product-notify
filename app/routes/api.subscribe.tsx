@@ -7,7 +7,10 @@ import { authenticate } from "../shopify.server";
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
 function json(body: { success: boolean; message: string }, status = 200) {
-  return Response.json(body, { status });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 function readShop(...values: Array<string | null | undefined>) {
