@@ -1,3 +1,4 @@
+import { render } from "@react-email/render";
 import { useEffect, useRef, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useFetcher, useLoaderData, useLocation } from "@remix-run/react";
@@ -75,6 +76,19 @@ type NotifyResult = {
   runId: number;
   message: string;
 };
+
+function errorText(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return "";
+}
 
 function rejected(message: string, runId = 0): NotifyResult {
   return {
@@ -321,15 +335,16 @@ export const action = async ({
 
   let sent = 0;
   let failed = 0;
+  let message = "";
 
   try {
-    const { data, error } = await resend.batch.send(
-      subscribers.map((subscriber) => ({
+    const emails = await Promise.all(
+      subscribers.map(async (subscriber) => ({
         from,
         replyTo: sender.fromEmail,
         to: subscriber.email,
         subject,
-        react: (
+        html: await render(
           <NewProductNotification
             productTitle={mailTitle}
             productImageUrl={safeImageUrl}
@@ -338,24 +353,35 @@ export const action = async ({
             buttonLabel={buttonLabel}
             unsubscribeUrl={unsubscribeUrl(session.shop, subscriber.email, "en")}
             unsubscribeLabel={unsubscribeLabel}
-          />
+          />,
         ),
       })),
-      {
-        batchValidation: "permissive",
-        idempotencyKey: `${session.shop}:${runId}:${afterId}`,
-      },
     );
+    const { data, error } = await resend.batch.send(emails, {
+      batchValidation: "permissive",
+      idempotencyKey: `${session.shop}:${runId}:${afterId}`,
+    });
     if (error || !data) {
       failed = subscribers.length;
+      message = errorText(error) || t("notifySendFailed");
       console.error("Resend batch send failed", error);
     } else {
-      sent = data.data.length;
-      failed = data.errors.length;
-      if (failed > 0) console.error("Resend rejected batch emails", data.errors);
+      const queued = Array.isArray(data.data) ? data.data.length : 0;
+      const errors = Array.isArray(data.errors) ? data.errors : [];
+      sent = queued;
+      failed = errors.length;
+      if (failed > 0) {
+        message =
+          errors
+            .map((item) => item.message)
+            .filter((item) => item.length > 0)
+            .join("; ") || t("notifySendFailed");
+        console.error("Resend rejected batch emails", errors);
+      }
     }
   } catch (error) {
     failed = subscribers.length;
+    message = errorText(error) || t("notifySendFailed");
     console.error("Resend batch send failed", error);
   }
 
@@ -368,7 +394,7 @@ export const action = async ({
     afterId,
     nextAfterId,
     runId,
-    message: "",
+    message,
   };
 };
 
@@ -383,6 +409,7 @@ export default function NotifyPage() {
   const [variantId, setVariantId] = useState("");
   const [query, setQuery] = useState(data.query);
   const [totals, setTotals] = useState({ sent: 0, failed: 0 });
+  const [failure, setFailure] = useState("");
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState(0);
   const applied = useRef("");
@@ -415,6 +442,9 @@ export default function NotifyPage() {
       sent: current.sent + batch.sent,
       failed: current.failed + batch.failed,
     }));
+    if (batch.message && (batch.sent > 0 || batch.failed > 0)) {
+      setFailure(batch.message);
+    }
     if (!batch.done) {
       const body = new FormData();
       body.set("productId", productId);
@@ -440,6 +470,7 @@ export default function NotifyPage() {
     applied.current = "";
     setRunId(nextRun);
     setTotals({ sent: 0, failed: 0 });
+    setFailure("");
     setRunning(true);
     const body = new FormData();
     body.set("productId", productId);
@@ -452,11 +483,13 @@ export default function NotifyPage() {
   const stopped = !running && fetcher.state === "idle" && fetcher.data;
   const status = running
     ? t("notifyProgress", totals)
-    : stopped && fetcher.data?.message
-      ? fetcher.data.message
-      : stopped
-        ? t("notifyDone", totals)
-        : "";
+    : stopped && failure
+      ? `${t("notifyDone", totals)} ${failure}`
+      : stopped && fetcher.data?.message
+        ? fetcher.data.message
+        : stopped
+          ? t("notifyDone", totals)
+          : "";
 
   return (
     <Page title={data.title} subtitle={data.subtitle}>
