@@ -88,6 +88,9 @@ const copy = {
     landingLabel: "Shop domain",
     landingExample: "example.myshopify.com",
     landingSubmit: "Log in",
+    landingLanguage: "Language",
+    loginMissingShop: "Please enter your shop domain to log in",
+    loginInvalidShop: "Please enter a valid shop domain to log in",
   },
   zh: {
     navHome: "首页",
@@ -171,8 +174,11 @@ const copy = {
     landingTitle: "玄鸟",
     landingText: "输入店铺域名以打开应用。",
     landingLabel: "店铺域名",
-    landingExample: "例如 axmax-2.myshopify.com",
+    landingExample: "example.myshopify.com",
     landingSubmit: "登录",
+    landingLanguage: "语言",
+    loginMissingShop: "请输入店铺域名后再登录",
+    loginInvalidShop: "请输入有效的店铺域名后再登录",
   },
 } as const;
 
@@ -195,7 +201,24 @@ export async function localeFromRequest(request: Request): Promise<Locale> {
   const query = new URL(request.url).searchParams.get("locale");
   if (query) return resolveLocale(query);
   const saved = await localeCookie.parse(request.headers.get("Cookie"));
-  if (typeof saved === "string") return resolveLocale(saved);
+  if (typeof saved === "string" && saved.length > 0) return resolveLocale(saved);
+  return "en";
+}
+
+/** Public pages also follow the browser language when no locale was chosen yet. */
+export async function localeForLanding(request: Request): Promise<Locale> {
+  const query = new URL(request.url).searchParams.get("locale");
+  if (query) return resolveLocale(query);
+  const saved = await localeCookie.parse(request.headers.get("Cookie"));
+  if (typeof saved === "string" && saved.length > 0) return resolveLocale(saved);
+
+  const header = request.headers.get("Accept-Language") ?? "";
+  const tags = header.split(",").map((part) => part.trim().split(";")[0] ?? "");
+  for (const tag of tags) {
+    const language = tag.toLowerCase();
+    if (language.startsWith("zh")) return "zh";
+    if (language.startsWith("en")) return "en";
+  }
   return "en";
 }
 

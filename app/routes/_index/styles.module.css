@@ -1,49 +1,146 @@
-.index {
+:global(html),
+:global(body) {
+  margin: 0;
+  min-height: 100%;
+  background: #111111;
+}
+
+.page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255, 90, 79, 0.18), transparent 55%),
+    #111111;
+  color: #111213;
+  font-family:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+.card {
+  box-sizing: border-box;
+  width: min(100%, 420px);
+  padding: 40px 32px 32px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.mark {
   display: flex;
   justify-content: center;
-  height: 100%;
-  width: 100%;
-  text-align: center;
-  padding: 1rem;
+  margin-bottom: 20px;
 }
 
-.heading,
-.text {
-  padding: 0;
+.mark svg {
+  display: block;
+}
+
+.heading {
   margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .text {
-  font-size: 1.2rem;
-  padding-bottom: 2rem;
-}
-
-.content {
-  display: grid;
-  gap: 2rem;
+  margin: 8px 0 0;
+  color: #616161;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .form {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin: 0 auto;
-  gap: 1rem;
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+  text-align: left;
 }
 
 .label {
-  display: grid;
-  gap: 0.2rem;
-  max-width: 20rem;
-  text-align: left;
-  font-size: 1rem;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .input {
-  padding: 0.4rem;
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid #c9cccf;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111213;
+  font: inherit;
+  font-size: 16px;
+}
+
+.input::placeholder {
+  color: #8c9196;
+}
+
+.input:focus {
+  outline: 2px solid #111111;
+  outline-offset: 1px;
+  border-color: #111111;
 }
 
 .button {
-  padding: 0.4rem;
+  height: 44px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: #111111;
+  color: #ffffff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: #2c2c2c;
+}
+
+.button:focus-visible {
+  outline: 2px solid #ff5a4f;
+  outline-offset: 2px;
+}
+
+.locales {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.locale,
+.localeCurrent {
+  color: #8c9196;
+  text-decoration: none;
+}
+
+.locale:hover {
+  color: #111213;
+}
+
+.localeCurrent {
+  color: #111213;
+  font-weight: 600;
+}
+
+.locale:focus-visible {
+  outline: 2px solid #111111;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
