@@ -25,6 +25,9 @@ import { unsubscribeUrl } from "../unsubscribe.server";
 
 /** Resend `batch.send` accepts at most 100 emails per request. */
 const BATCH_SIZE = 100;
+/** One id per click. A small counter repeats after refresh and collides for 24 hours. */
+const RUN_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type VariantNode = {
   id: string;
@@ -73,7 +76,7 @@ type NotifyResult = {
   done: boolean;
   afterId: number;
   nextAfterId: number;
-  runId: number;
+  runId: string;
   message: string;
 };
 
@@ -90,7 +93,12 @@ function errorText(error: unknown) {
   return "";
 }
 
-function rejected(message: string, runId = 0): NotifyResult {
+function readRunId(value: FormDataEntryValue | null) {
+  const runId = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return RUN_ID_RE.test(runId) ? runId : "";
+}
+
+function rejected(message: string, runId = ""): NotifyResult {
   return {
     ok: false,
     sent: 0,
@@ -228,8 +236,8 @@ export const action = async ({
   const withVariant = variantId.startsWith("gid://shopify/ProductVariant/");
   const afterRaw = Number(formData.get("afterId") || 0);
   const afterId = Number.isFinite(afterRaw) && afterRaw > 0 ? afterRaw : 0;
-  const runRaw = Number(formData.get("runId") || 0);
-  const runId = Number.isFinite(runRaw) && runRaw > 0 ? runRaw : 0;
+  const runId = readRunId(formData.get("runId"));
+  if (!runId) return rejected(t("notifySendFailed"));
 
   if (!productId.startsWith("gid://shopify/Product/")) {
     return rejected(t("notifySelectProduct"), runId);
@@ -411,7 +419,7 @@ export default function NotifyPage() {
   const [totals, setTotals] = useState({ sent: 0, failed: 0 });
   const [failure, setFailure] = useState("");
   const [running, setRunning] = useState(false);
-  const [runId, setRunId] = useState(0);
+  const [runId, setRunId] = useState("");
   const applied = useRef("");
   const selected = data.products.find((product) => product.id === productId);
   const variants = selected?.variants?.nodes ?? [];
@@ -450,7 +458,7 @@ export default function NotifyPage() {
       body.set("productId", productId);
       body.set("variantId", variantId);
       body.set("afterId", String(batch.nextAfterId));
-      body.set("runId", String(runId));
+      body.set("runId", runId);
       fetcher.submit(body, { method: "post", action: `/app/notify${search}` });
       return;
     }
@@ -466,7 +474,7 @@ export default function NotifyPage() {
   }
 
   function startSend() {
-    const nextRun = runId + 1;
+    const nextRun = crypto.randomUUID();
     applied.current = "";
     setRunId(nextRun);
     setTotals({ sent: 0, failed: 0 });
@@ -476,7 +484,7 @@ export default function NotifyPage() {
     body.set("productId", productId);
     body.set("variantId", variantId);
     body.set("afterId", "0");
-    body.set("runId", String(nextRun));
+    body.set("runId", nextRun);
     fetcher.submit(body, { method: "post", action: `/app/notify${search}` });
   }
 
