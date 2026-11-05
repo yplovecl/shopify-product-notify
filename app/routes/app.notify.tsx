@@ -170,6 +170,7 @@ export const action = async ({
   const { admin, session } = await authenticate.admin(request);
   const locale = await localeFromRequest(request);
   const t = translate(locale);
+  const emailCopy = translate("en");
   const formData = await request.formData();
   const productIdField = formData.get("productId");
   const productId = typeof productIdField === "string" ? productIdField : "";
@@ -256,16 +257,16 @@ export const action = async ({
       const { error } = await resend.emails.send({
         from,
         to: subscriber.email,
-        subject: t("emailSubject", { title: product.title }),
+        subject: emailCopy("emailSubject", { title: product.title }),
         react: (
           <NewProductNotification
             productTitle={product.title}
             productImageUrl={safeImageUrl}
             productUrl={productUrl}
-            intro={t("emailHello", { shop: shopName })}
-            buttonLabel={t("emailButton")}
-            unsubscribeUrl={unsubscribeUrl(session.shop, subscriber.email, locale)}
-            unsubscribeLabel={t("emailUnsubscribe")}
+            intro={emailCopy("emailHello", { shop: shopName })}
+            buttonLabel={emailCopy("emailButton")}
+            unsubscribeUrl={unsubscribeUrl(session.shop, subscriber.email, "en")}
+            unsubscribeLabel={emailCopy("emailUnsubscribe")}
           />
         ),
       });
