@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
     >
       <h1>Privacy policy</h1>
       <p>
-        Product Notify stores only what a shop needs to send new-product emails
+        New Product Alerts stores only what a shop needs to send new-product emails
         that a person asked for.
       </p>
       <h2>Data we store</h2>
