@@ -17,7 +17,7 @@ export default function Index() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>New product alerts</h1>
+        <h1 className={styles.heading}>NX Swift</h1>
         <p className={styles.text}>Enter the shop domain to open the app.</p>
         <Form className={styles.form} method="post" action="/auth/login">
           <label className={styles.label}>

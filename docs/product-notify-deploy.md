@@ -1,4 +1,4 @@
-# 新品订阅通知（product-notify）部署文档
+# 玄鸟（product-notify）部署文档
 
 本文说明如何把应用部署到自己的 Linux 服务器。本地开发仍使用 SQLite，线上使用 MariaDB。
 
@@ -257,7 +257,7 @@ pnpm run deploy
 
 1. 在 Shopify 后台重新打开应用，按新域名完成授权。权限或地址变化后，旧会话不能继续使用。
 2. 打开「发件设置」，保存发件名称和发件邮箱。邮箱必须是 Resend 账号中已验证域名下的地址。`send`、`rsend` 这类子域名用于退信，不能当作发件地址。
-3. 在主题编辑器添加「新品订阅」区块。区块里的订阅接口路径保持默认 `/apps/subscribe`，与 App Proxy 的 prefix、subpath 一致。
+3. 在主题编辑器添加「玄鸟」区块。区块里的订阅接口路径保持默认 `/apps/subscribe`，与 App Proxy 的 prefix、subpath 一致。
 4. 到合作伙伴后台确认该应用版本已经发布。本应用在代码里是 App Store 分发（`AppDistribution.AppStore`）。开发店铺可以安装已发布版本；要给任意商家安装，还需要在合作伙伴后台提交 App Store 审核。顾客数据请求会记在「订阅者」页面，并在已保存发件邮箱时把摘要发到该邮箱。隐私政策地址是 `https://notify.nxedc.net/privacy`。
 
 ## 10. 上线后自检
@@ -266,7 +266,7 @@ pnpm run deploy
 | --- | --- |
 | `systemctl status product-notify` | 进程为 active |
 | 打开 `https://notify.nxedc.net` | 有 HTTP 响应，证书有效 |
-| 后台打开应用 | 能看到「新品订阅通知」首页，而不是空白或隧道错误 |
+| 后台打开应用 | 能看到「玄鸟」首页，而不是空白或隧道错误 |
 | 发件设置保存后刷新 | 首页显示刚才保存的发件人 |
 | 主题区块提交一个邮箱 | 订阅者列表出现该邮箱；重复提交得到「该邮箱已订阅」 |
 | 直接请求 `https://notify.nxedc.net/api/subscribe` 且不带 Shopify 签名 | 返回 401 |

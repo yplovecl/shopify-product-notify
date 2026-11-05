@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "d2a99231e208e14154fb6d409ad60ffb"
-name = "New Product Alerts"
+name = "NX Swift"
 application_url = "https://notify.nxedc.net"
 embedded = true
 
