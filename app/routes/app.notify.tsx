@@ -22,8 +22,8 @@ import { getResend } from "../resend.server";
 import { authenticate } from "../shopify.server";
 import { unsubscribeUrl } from "../unsubscribe.server";
 
-const SEND_INTERVAL_MS = 600;
-const BATCH_SIZE = 15;
+/** Resend `batch.send` accepts at most 100 emails per request. */
+const BATCH_SIZE = 100;
 
 type VariantNode = {
   id: string;
@@ -75,10 +75,6 @@ type NotifyResult = {
   runId: number;
   message: string;
 };
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function rejected(message: string, runId = 0): NotifyResult {
   return {
@@ -313,42 +309,48 @@ export const action = async ({
   const safeImageUrl =
     imageUrl && imageUrl.startsWith("https://") ? imageUrl : undefined;
 
+  const subject = emailCopy("emailSubject", { title: mailTitle });
+  const intro = emailCopy("emailHello", { shop: shopName });
+  const buttonLabel = emailCopy("emailButton");
+  const unsubscribeLabel = emailCopy("emailUnsubscribe");
+
   let sent = 0;
   let failed = 0;
 
-  for (let index = 0; index < subscribers.length; index += 1) {
-    const subscriber = subscribers[index]!;
-    try {
-      const { error } = await resend.emails.send({
+  try {
+    const { data, error } = await resend.batch.send(
+      subscribers.map((subscriber) => ({
         from,
         to: subscriber.email,
-        subject: emailCopy("emailSubject", { title: mailTitle }),
+        subject,
         react: (
           <NewProductNotification
             productTitle={mailTitle}
             productImageUrl={safeImageUrl}
             productUrl={mailUrl}
-            intro={emailCopy("emailHello", { shop: shopName })}
-            buttonLabel={emailCopy("emailButton")}
+            intro={intro}
+            buttonLabel={buttonLabel}
             unsubscribeUrl={unsubscribeUrl(session.shop, subscriber.email, "en")}
-            unsubscribeLabel={emailCopy("emailUnsubscribe")}
+            unsubscribeLabel={unsubscribeLabel}
           />
         ),
-      });
-      if (error) {
-        failed += 1;
-        console.error("Resend rejected email", error);
-      } else {
-        sent += 1;
-      }
-    } catch (error) {
-      failed += 1;
-      console.error("Resend send failed", error);
+      })),
+      {
+        batchValidation: "permissive",
+        idempotencyKey: `${session.shop}:${runId}:${afterId}`,
+      },
+    );
+    if (error || !data) {
+      failed = subscribers.length;
+      console.error("Resend batch send failed", error);
+    } else {
+      sent = data.data.length;
+      failed = data.errors.length;
+      if (failed > 0) console.error("Resend rejected batch emails", data.errors);
     }
-
-    if (index < subscribers.length - 1) {
-      await sleep(SEND_INTERVAL_MS);
-    }
+  } catch (error) {
+    failed = subscribers.length;
+    console.error("Resend batch send failed", error);
   }
 
   const nextAfterId = subscribers[subscribers.length - 1]!.id;
