@@ -12,3 +12,8 @@ export function formatFromAddress(fromName: string, fromEmail: string) {
   if (!name) return email;
   return `${name} <${email}>`;
 }
+
+/** Address on the app operator's verified Resend domain. Every shop sends from this. */
+export function platformFromEmail() {
+  return normalizeEmail(process.env.RESEND_FROM_EMAIL);
+}

@@ -91,6 +91,7 @@ SCOPES=read_products,write_app_proxy
 SHOPIFY_APP_URL=https://notify.nxedc.net
 DATABASE_URL=mysql://product_notify:请换成强密码@127.0.0.1:3306/product_notify
 RESEND_API_KEY=Resend 控制台创建的 API Key
+RESEND_FROM_EMAIL=notify@nxedc.net
 ```
 
 | 变量 | 必填 | 说明 |
@@ -103,9 +104,10 @@ RESEND_API_KEY=Resend 控制台创建的 API Key
 | `SHOPIFY_APP_URL` | 是 | 公网 HTTPS 根地址，不要末尾斜杠。必须与 `application_url` 完全一致 |
 | `DATABASE_URL` | 是 | 仅线上使用。本地 `pnpm dev` 不读这个变量 |
 | `RESEND_API_KEY` | 发信时必填 | 未设置时后台可以打开，但「发送通知」会被拒绝 |
+| `RESEND_FROM_EMAIL` | 发信时必填 | 所有店铺共用的发信地址，必须属于 Resend 里已验证的域名。商家后台填写的邮箱只作为回复地址 |
 | `SHOP_CUSTOM_DOMAIN` | 否 | 只有店铺使用自定义 myshopify 以外的域名参与 OAuth 时才需要 |
 
-发件人名称和发件邮箱不写在环境变量里。每个店铺在后台「发件设置」单独保存，发件邮箱必须属于 Resend 里已经验证的域名。
+商家在后台「发件设置」保存的是显示名称和回复邮箱，可以是任意邮箱。真正的发信地址是 `RESEND_FROM_EMAIL`。
 
 ## 6. 建表、构建、启动
 
@@ -270,7 +272,7 @@ pnpm run deploy
 | 发件设置保存后刷新 | 首页显示刚才保存的发件人 |
 | 主题区块提交一个邮箱 | 订阅者列表出现该邮箱；重复提交得到「该邮箱已订阅」 |
 | 直接请求 `https://notify.nxedc.net/api/subscribe` 且不带 Shopify 签名 | 返回 401 |
-| 选择一个在售商品发送通知 | 订阅者收到邮件。未配置 `RESEND_API_KEY` 或未保存发件人时，页面会拒绝发送 |
+| 选择一个在售商品发送通知 | 订阅者收到邮件，发件地址是 `RESEND_FROM_EMAIL`，回复地址是该店保存的邮箱。未配置密钥、发信地址或回复邮箱时，页面会拒绝发送 |
 | MariaDB | 存在 `Session`、`Subscriber`、`ShopSender` |
 
 发送很多订阅者时，请求会按每人约 600ms 持续占用，反向代理的读超时要覆盖整次发送。页面要保持打开，当前没有后台队列。
@@ -304,6 +306,6 @@ sudo systemctl restart product-notify
 
 **数据库报 Session 表不存在，或客户端驱动不匹配。** 线上执行的是 `pnpm run setup`。改为 `pnpm run setup:production` 后重启。
 
-**能打开后台，但不能发信。** 先看页面提示：缺少 `RESEND_API_KEY`，或该店还没有发件人。发件域名要在 Resend 中验证通过。
+**能打开后台，但不能发信。** 先看页面提示：缺少 `RESEND_API_KEY`、缺少 `RESEND_FROM_EMAIL`，或该店还没有回复邮箱。`RESEND_FROM_EMAIL` 的域名要在 Resend 中验证通过。
 
 **`prisma migrate deploy` 报找不到 OpenSSL。** 在系统上安装 OpenSSL 后重新执行 `pnpm run setup:production`。

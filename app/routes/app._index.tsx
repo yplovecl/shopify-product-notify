@@ -10,7 +10,7 @@ import {
   Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { formatFromAddress } from "../email";
+import { formatFromAddress, platformFromEmail } from "../email";
 import db from "../db.server";
 import { localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
@@ -23,17 +23,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     db.subscriber.count({ where: { shop: session.shop } }),
     db.shopSender.findUnique({ where: { shop: session.shop } }),
   ]);
+  const platform = platformFromEmail();
 
   return {
     locale,
     title: t("homeTitle"),
     shop: session.shop,
     summary: t("homeCount", { count }),
-    senderLine: sender
-      ? t("homeSender", {
-          from: formatFromAddress(sender.fromName, sender.fromEmail),
-        })
-      : t("homeNoSender"),
+    senderLine: !sender
+      ? t("homeNoSender")
+      : platform
+        ? t("homeSender", {
+            from: formatFromAddress(sender.fromName, platform),
+            reply: sender.fromEmail,
+          })
+        : t("homeSenderNoFrom", { reply: sender.fromEmail }),
     steps: [t("homeStepBlock"), t("homeStepSender"), t("homeStepNotify")],
     settingsLabel: t("homeSettings"),
     subscribersLabel: t("homeSubscribers"),

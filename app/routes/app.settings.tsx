@@ -3,7 +3,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useFetcher, useLoaderData } from "@remix-run/react";
 import { Banner, BlockStack, Button, Card, Page, TextField } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { formatFromAddress, normalizeEmail } from "../email";
+import { formatFromAddress, normalizeEmail, platformFromEmail } from "../email";
 import db from "../db.server";
 import { localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
@@ -60,11 +60,15 @@ export const action = async ({
     update: { fromName, fromEmail },
   });
 
+  const platform = platformFromEmail();
   return {
     ok: true,
-    message: t("settingsSaved", {
-      from: formatFromAddress(fromName, fromEmail),
-    }),
+    message: platform
+      ? t("settingsSaved", {
+          from: formatFromAddress(fromName, platform),
+          reply: fromEmail,
+        })
+      : t("settingsSavedNoFrom", { reply: fromEmail }),
   };
 };
 

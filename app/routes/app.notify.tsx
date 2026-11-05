@@ -15,7 +15,7 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { NewProductNotification } from "../emails/NewProductNotification";
-import { formatFromAddress } from "../email";
+import { formatFromAddress, platformFromEmail } from "../email";
 import db from "../db.server";
 import { localeFromRequest, translate } from "../i18n";
 import { getResend } from "../resend.server";
@@ -169,6 +169,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     },
   );
   const payload = (await response.json()) as ProductsQuery;
+  const platform = platformFromEmail();
 
   return {
     locale,
@@ -178,11 +179,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     products: payload.data?.products?.nodes ?? [],
     subscriberCount,
     apiKeyConfigured: Boolean(process.env.RESEND_API_KEY),
-    fromLabel: sender
-      ? formatFromAddress(sender.fromName, sender.fromEmail)
-      : "",
+    platformConfigured: Boolean(platform),
+    fromLabel:
+      sender && platform ? formatFromAddress(sender.fromName, platform) : "",
+    replyLabel: sender?.fromEmail ?? "",
     error: payload.errors?.map((item) => item.message).join("; ") ?? null,
     noKey: t("notifyNoKey"),
+    noFrom: t("notifyNoFrom"),
     noSender: t("notifyNoSender"),
     searchLabel: t("notifySearch"),
     searchButton: t("notifySearchButton"),
@@ -220,12 +223,14 @@ export const action = async ({
 
   const resend = getResend();
   if (!resend) return rejected(t("notifyNoKey"), runId);
+  const platform = platformFromEmail();
+  if (!platform) return rejected(t("notifyNoFrom"), runId);
 
   const sender = await db.shopSender.findUnique({
     where: { shop: session.shop },
   });
   if (!sender) return rejected(t("notifyNoSender"), runId);
-  const from = formatFromAddress(sender.fromName, sender.fromEmail);
+  const from = formatFromAddress(sender.fromName, platform);
 
   const response = await admin.graphql(
     `#graphql
@@ -321,6 +326,7 @@ export const action = async ({
     const { data, error } = await resend.batch.send(
       subscribers.map((subscriber) => ({
         from,
+        replyTo: sender.fromEmail,
         to: subscriber.email,
         subject,
         react: (
@@ -370,7 +376,8 @@ export default function NotifyPage() {
   const data = useLoaderData<typeof loader>();
   const { search } = useLocation();
   const t = translate(data.locale);
-  const canSend = data.apiKeyConfigured && Boolean(data.fromLabel);
+  const canSend =
+    data.apiKeyConfigured && data.platformConfigured && Boolean(data.replyLabel);
   const fetcher = useFetcher<typeof action>();
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [variantId, setVariantId] = useState("");
@@ -460,14 +467,19 @@ export default function NotifyPage() {
             <p>{data.noKey}</p>
           </Banner>
         )}
-        {data.apiKeyConfigured && !data.fromLabel && (
+        {data.apiKeyConfigured && !data.platformConfigured && (
+          <Banner tone="warning">
+            <p>{data.noFrom}</p>
+          </Banner>
+        )}
+        {data.apiKeyConfigured && data.platformConfigured && !data.replyLabel && (
           <Banner tone="warning">
             <p>{data.noSender}</p>
           </Banner>
         )}
         {data.fromLabel && (
           <Banner tone="info">
-            <p>{t("notifyFrom", { from: data.fromLabel })}</p>
+            <p>{t("notifyFrom", { from: data.fromLabel, reply: data.replyLabel })}</p>
           </Banner>
         )}
         {data.error && (

@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { formatFromAddress } from "../email";
+import { formatFromAddress, platformFromEmail } from "../email";
 import db from "../db.server";
 import { getResend } from "../resend.server";
 import { authenticate } from "../shopify.server";
@@ -36,13 +36,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const sender = await db.shopSender.findUnique({ where: { shop } });
   const resend = getResend();
-  if (sender && resend) {
+  const platform = platformFromEmail();
+  if (sender && resend && platform) {
     const subscribed = subscriber
       ? `Subscribed at ${subscriber.createdAt.toISOString()}.`
       : "No subscription is stored for this email.";
     try {
       await resend.emails.send({
-        from: formatFromAddress(sender.fromName, sender.fromEmail),
+        from: formatFromAddress(sender.fromName, platform),
         to: sender.fromEmail,
         subject: `Customer data request for ${shop}`,
         text: [
