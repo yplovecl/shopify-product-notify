@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, Link, useActionData, useLoaderData } from "@remix-run/react";
 import {
@@ -26,6 +26,11 @@ import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
+
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const locale = data?.locale === "zh" ? "zh" : "en";
+  return [{ title: translate(locale)("landingTitle") }];
+};
 
 const polarisTranslations = {
   en: polarisEnglish,

@@ -1,4 +1,4 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, Link, useLoaderData } from "@remix-run/react";
 import {
@@ -8,6 +8,11 @@ import {
   translate,
 } from "../../i18n";
 import styles from "./styles.module.css";
+
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const locale = data?.locale === "zh" ? "zh" : "en";
+  return [{ title: translate(locale)("landingTitle") }];
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
