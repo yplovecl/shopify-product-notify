@@ -25,11 +25,18 @@ import { unsubscribeUrl } from "../unsubscribe.server";
 const SEND_INTERVAL_MS = 600;
 const BATCH_SIZE = 15;
 
+type VariantNode = {
+  id: string;
+  title: string;
+  image: { url: string } | null;
+};
+
 type ProductNode = {
   id: string;
   title: string;
   handle: string;
   featuredImage: { url: string } | null;
+  variants: { nodes: VariantNode[] };
 };
 
 type ProductsQuery = {
@@ -47,6 +54,12 @@ type ProductQuery = {
       handle: string;
       onlineStoreUrl: string | null;
       featuredImage: { url: string } | null;
+    } | null;
+    variant?: {
+      id: string;
+      title: string;
+      image: { url: string } | null;
+      product: { id: string } | null;
     } | null;
   };
   errors?: { message: string }[];
@@ -95,6 +108,18 @@ function productUrlFor(
   }
 }
 
+function variantUrlFor(productUrl: string, variantId: string) {
+  const numericId = variantId.split("/").pop() ?? "";
+  if (!/^\d+$/.test(numericId)) return null;
+  try {
+    const url = new URL(productUrl);
+    url.searchParams.set("variant", numericId);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 function productQuery(raw: string | null) {
   const term = (raw ?? "").trim().slice(0, 80).replace(/["\\]/g, "");
   if (!term) return { query: "status:active", sortKey: "UPDATED_AT", reverse: true, term: "" };
@@ -127,6 +152,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             featuredImage {
               url
             }
+            variants(first: 100) {
+              nodes {
+                id
+                title
+                image {
+                  url
+                }
+              }
+            }
           }
         }
       }`,
@@ -157,6 +191,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     searchLabel: t("notifySearch"),
     searchButton: t("notifySearchButton"),
     pickLabel: t("notifyPick"),
+    variantLabel: t("notifyVariant"),
+    noVariantLabel: t("notifyNoVariant"),
     noneLabel: t("notifyNone"),
     preview: t("notifyPreview"),
     sendLabel: t("notifySend"),
@@ -174,6 +210,9 @@ export const action = async ({
   const formData = await request.formData();
   const productIdField = formData.get("productId");
   const productId = typeof productIdField === "string" ? productIdField : "";
+  const variantIdField = formData.get("variantId");
+  const variantId = typeof variantIdField === "string" ? variantIdField : "";
+  const withVariant = variantId.startsWith("gid://shopify/ProductVariant/");
   const afterRaw = Number(formData.get("afterId") || 0);
   const afterId = Number.isFinite(afterRaw) && afterRaw > 0 ? afterRaw : 0;
   const runRaw = Number(formData.get("runId") || 0);
@@ -194,7 +233,7 @@ export const action = async ({
 
   const response = await admin.graphql(
     `#graphql
-      query NotifyProduct($id: ID!) {
+      query NotifyProduct($id: ID!, $variantId: ID!, $withVariant: Boolean!) {
         shop {
           name
         }
@@ -206,8 +245,26 @@ export const action = async ({
             url
           }
         }
+        variant: node(id: $variantId) @include(if: $withVariant) {
+          ... on ProductVariant {
+            id
+            title
+            image {
+              url
+            }
+            product {
+              id
+            }
+          }
+        }
       }`,
-    { variables: { id: productId } },
+    {
+      variables: {
+        id: productId,
+        variantId: withVariant ? variantId : productId,
+        withVariant,
+      },
+    },
   );
   const payload = (await response.json()) as ProductQuery;
 
@@ -220,6 +277,14 @@ export const action = async ({
 
   const productUrl = productUrlFor(session.shop, product);
   if (!productUrl) return rejected(t("notifyBadUrl"), runId);
+
+  const variant = withVariant ? payload.data?.variant : null;
+  if (withVariant && (!variant || variant.product?.id !== productId)) {
+    return rejected(t("notifyMissingVariant"), runId);
+  }
+  const mailTitle = variant ? `${product.title} - ${variant.title}` : product.title;
+  const mailUrl = variant ? variantUrlFor(productUrl, variant.id) : productUrl;
+  if (!mailUrl) return rejected(t("notifyBadUrl"), runId);
 
   const subscribers = await db.subscriber.findMany({
     where: { shop: session.shop, id: { gt: afterId } },
@@ -244,7 +309,7 @@ export const action = async ({
   }
 
   const shopName = payload.data?.shop?.name || session.shop;
-  const imageUrl = product.featuredImage?.url;
+  const imageUrl = variant?.image?.url || product.featuredImage?.url;
   const safeImageUrl =
     imageUrl && imageUrl.startsWith("https://") ? imageUrl : undefined;
 
@@ -257,12 +322,12 @@ export const action = async ({
       const { error } = await resend.emails.send({
         from,
         to: subscriber.email,
-        subject: emailCopy("emailSubject", { title: product.title }),
+        subject: emailCopy("emailSubject", { title: mailTitle }),
         react: (
           <NewProductNotification
-            productTitle={product.title}
+            productTitle={mailTitle}
             productImageUrl={safeImageUrl}
-            productUrl={productUrl}
+            productUrl={mailUrl}
             intro={emailCopy("emailHello", { shop: shopName })}
             buttonLabel={emailCopy("emailButton")}
             unsubscribeUrl={unsubscribeUrl(session.shop, subscriber.email, "en")}
@@ -306,19 +371,29 @@ export default function NotifyPage() {
   const canSend = data.apiKeyConfigured && Boolean(data.fromLabel);
   const fetcher = useFetcher<typeof action>();
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
+  const [variantId, setVariantId] = useState("");
   const [query, setQuery] = useState(data.query);
   const [totals, setTotals] = useState({ sent: 0, failed: 0 });
   const [running, setRunning] = useState(false);
   const [runId, setRunId] = useState(0);
   const applied = useRef("");
   const selected = data.products.find((product) => product.id === productId);
+  const variants = selected?.variants?.nodes ?? [];
+  const selectedVariant = variants.find((variant) => variant.id === variantId);
   const submitting = running || fetcher.state !== "idle";
 
   useEffect(() => {
     if (!data.products.some((product) => product.id === productId)) {
       setProductId(data.products[0]?.id ?? "");
+      setVariantId("");
     }
   }, [data.products, productId]);
+
+  useEffect(() => {
+    if (variantId && !variants.some((variant) => variant.id === variantId)) {
+      setVariantId("");
+    }
+  }, [variantId, variants]);
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data || !running) return;
@@ -334,13 +409,14 @@ export default function NotifyPage() {
     if (!batch.done) {
       const body = new FormData();
       body.set("productId", productId);
+      body.set("variantId", variantId);
       body.set("afterId", String(batch.nextAfterId));
       body.set("runId", String(runId));
       fetcher.submit(body, { method: "post", action: `/app/notify${search}` });
       return;
     }
     setRunning(false);
-  }, [fetcher, productId, runId, running, search]);
+  }, [fetcher, productId, variantId, runId, running, search]);
 
   function searchProducts() {
     const params = new URLSearchParams(search);
@@ -358,6 +434,7 @@ export default function NotifyPage() {
     setRunning(true);
     const body = new FormData();
     body.set("productId", productId);
+    body.set("variantId", variantId);
     body.set("afterId", "0");
     body.set("runId", String(nextRun));
     fetcher.submit(body, { method: "post", action: `/app/notify${search}` });
@@ -436,20 +513,40 @@ export default function NotifyPage() {
               }
               value={productId}
               disabled={data.products.length === 0}
-              onChange={setProductId}
+              onChange={(value) => {
+                setProductId(value);
+                setVariantId("");
+              }}
+            />
+            <Select
+              label={data.variantLabel}
+              options={[
+                { label: data.noVariantLabel, value: "" },
+                ...variants.map((variant) => ({
+                  label: variant.title,
+                  value: variant.id,
+                })),
+              ]}
+              value={variantId}
+              disabled={!selected || variants.length === 0}
+              onChange={setVariantId}
             />
             {selected && (
               <InlineStack gap="300" blockAlign="center">
-                {selected.featuredImage?.url ? (
+                {(selectedVariant?.image?.url || selected.featuredImage?.url) ? (
                   <Thumbnail
-                    source={selected.featuredImage.url}
-                    alt={selected.title}
+                    source={
+                      selectedVariant?.image?.url || selected.featuredImage!.url
+                    }
+                    alt={selectedVariant?.title || selected.title}
                     size="large"
                   />
                 ) : null}
                 <BlockStack gap="100">
                   <Text as="h2" variant="headingMd">
-                    {selected.title}
+                    {selectedVariant
+                      ? `${selected.title} - ${selectedVariant.title}`
+                      : selected.title}
                   </Text>
                   <Text as="p" variant="bodyMd">
                     {data.preview}
