@@ -1,3 +1,5 @@
+import { createCookie } from "@remix-run/node";
+
 const copy = {
   en: {
     navHome: "Home",
@@ -175,8 +177,26 @@ export function resolveLocale(value: string | null | undefined): Locale {
   return value?.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
-export function localeFromRequest(request: Request): Locale {
-  return resolveLocale(new URL(request.url).searchParams.get("locale"));
+export const localeCookie = createCookie("npn_locale", {
+  path: "/",
+  sameSite: "none",
+  secure: true,
+  httpOnly: true,
+  maxAge: 60 * 60 * 24 * 365,
+});
+
+export async function localeFromRequest(request: Request): Promise<Locale> {
+  const query = new URL(request.url).searchParams.get("locale");
+  if (query) return resolveLocale(query);
+  const saved = await localeCookie.parse(request.headers.get("Cookie"));
+  if (typeof saved === "string") return resolveLocale(saved);
+  return "en";
+}
+
+export function localeCookieHeader(request: Request, locale: Locale) {
+  return localeCookie.serialize(locale, {
+    secure: new URL(request.url).protocol === "https:",
+  });
 }
 
 export function translate(locale: Locale) {

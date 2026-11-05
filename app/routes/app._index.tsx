@@ -17,7 +17,7 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = localeFromRequest(request);
+  const locale = await localeFromRequest(request);
   const t = translate(locale);
   const [count, sender] = await Promise.all([
     db.subscriber.count({ where: { shop: session.shop } }),

@@ -15,7 +15,7 @@ type SettingsResult = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = localeFromRequest(request);
+  const locale = await localeFromRequest(request);
   const t = translate(locale);
   const sender = await db.shopSender.findUnique({
     where: { shop: session.shop },
@@ -39,7 +39,7 @@ export const action = async ({
   request,
 }: ActionFunctionArgs): Promise<SettingsResult> => {
   const { session } = await authenticate.admin(request);
-  const t = translate(localeFromRequest(request));
+  const t = translate(await localeFromRequest(request));
   const formData = await request.formData();
   const fromNameField = formData.get("fromName");
   const fromName =

@@ -1,37 +1,53 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
-import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
+import { json } from "@remix-run/node";
+import {
+  Link,
+  Outlet,
+  useLoaderData,
+  useLocation,
+  useRouteError,
+} from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
-import { localeFromRequest, translate } from "../i18n";
+import { localeCookieHeader, localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
+  const locale = await localeFromRequest(request);
+  const headers = new Headers();
+  if (new URL(request.url).searchParams.has("locale")) {
+    headers.set("Set-Cookie", await localeCookieHeader(request, locale));
+  }
 
-  return {
-    apiKey: process.env.SHOPIFY_API_KEY || "",
-    locale: localeFromRequest(request),
-  };
+  return json(
+    {
+      apiKey: process.env.SHOPIFY_API_KEY || "",
+      locale,
+    },
+    { headers },
+  );
 };
 
 export default function App() {
   const { apiKey, locale } = useLoaderData<typeof loader>();
+  const { search } = useLocation();
   const t = translate(locale);
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app" rel="home">
+        <Link to={`/app${search}`} rel="home">
           {t("navHome")}
         </Link>
-        <Link to="/app/subscribers">{t("navSubscribers")}</Link>
-        <Link to="/app/settings">{t("navSettings")}</Link>
-        <Link to="/app/notify">{t("navNotify")}</Link>
+        <Link to={`/app/subscribers${search}`}>{t("navSubscribers")}</Link>
+        <Link to={`/app/settings${search}`}>{t("navSettings")}</Link>
+        <Link to={`/app/notify${search}`}>{t("navNotify")}</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>

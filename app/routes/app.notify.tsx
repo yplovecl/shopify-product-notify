@@ -108,7 +108,7 @@ function productQuery(raw: string | null) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const locale = localeFromRequest(request);
+  const locale = await localeFromRequest(request);
   const t = translate(locale);
   const search = productQuery(new URL(request.url).searchParams.get("q"));
   const [subscriberCount, sender] = await Promise.all([
@@ -168,7 +168,7 @@ export const action = async ({
   request,
 }: ActionFunctionArgs): Promise<NotifyResult> => {
   const { admin, session } = await authenticate.admin(request);
-  const locale = localeFromRequest(request);
+  const locale = await localeFromRequest(request);
   const t = translate(locale);
   const formData = await request.formData();
   const productIdField = formData.get("productId");

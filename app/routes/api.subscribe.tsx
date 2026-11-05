@@ -23,7 +23,7 @@ function readShop(...values: Array<string | null | undefined>) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const t = translate(localeFromRequest(request));
+  const t = translate(await localeFromRequest(request));
   const url = new URL(request.url);
   if (url.searchParams.has("signature")) {
     await authenticate.public.appProxy(request);
@@ -38,7 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const t = translate(localeFromRequest(request));
+  const t = translate(await localeFromRequest(request));
   if (request.method !== "POST") {
     return json({ success: false, message: t("subPostOnly") }, 405);
   }
@@ -72,7 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const tForm = translate(
     typeof localeField === "string" && localeField
       ? resolveLocale(localeField)
-      : localeFromRequest(request),
+      : await localeFromRequest(request),
   );
   const shopField = formData.get("shop");
   const email = normalizeEmail(formData.get("email"));

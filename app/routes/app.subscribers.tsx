@@ -17,7 +17,7 @@ function formatTime(iso: string | null, locale: Locale) {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = localeFromRequest(request);
+  const locale = await localeFromRequest(request);
   const t = translate(locale);
   const [subscribers, requests] = await Promise.all([
     db.subscriber.findMany({

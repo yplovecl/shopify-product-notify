@@ -8,7 +8,7 @@ import { unsubscribeTokenValid } from "../unsubscribe.server";
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const locale = localeFromRequest(request);
+  const locale = await localeFromRequest(request);
   const t = translate(locale);
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop")?.trim().toLowerCase() ?? "";
