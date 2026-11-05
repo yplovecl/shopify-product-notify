@@ -45,3 +45,15 @@ model ShopSender {
   fromEmail String   @db.VarChar(254)
   updatedAt DateTime @updatedAt
 }
+
+model CustomerDataRequest {
+  id               Int       @id @default(autoincrement())
+  shop             String
+  email            String    @db.VarChar(254)
+  shopifyRequestId String?   @db.VarChar(64)
+  found            Boolean
+  subscribedAt     DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([shop, createdAt])
+}

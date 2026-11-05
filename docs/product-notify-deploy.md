@@ -249,7 +249,7 @@ pnpm run deploy
 
 按提示确认发布。这一步会发布新的应用版本，包含应用 URL、回调地址、权限、Webhook、App Proxy，以及 `extensions/subscription-form` 主题扩展。
 
-`shopify.app.toml` 里的 `automatically_update_urls_on_dev = true` 只影响本机执行 `pnpm dev` 时的开发预览地址。已发布的线上版本使用最后一次 `pnpm run deploy` 写入的地址。
+`shopify.app.toml` 里的 `automatically_update_urls_on_dev = false`，本机执行 `pnpm dev` 不会改写 `application_url`。已发布的线上版本使用最后一次 `pnpm run deploy` 写入的地址。发布前仍要核对这 4 处是 `https://notify.nxedc.net`。
 
 服务器上不需要安装 Shopify CLI，也不要在服务器上执行 `pnpm dev`。
 
@@ -258,7 +258,7 @@ pnpm run deploy
 1. 在 Shopify 后台重新打开应用，按新域名完成授权。权限或地址变化后，旧会话不能继续使用。
 2. 打开「发件设置」，保存发件名称和发件邮箱。邮箱必须是 Resend 账号中已验证域名下的地址。`send`、`rsend` 这类子域名用于退信，不能当作发件地址。
 3. 在主题编辑器添加「新品订阅」区块。区块里的订阅接口路径保持默认 `/apps/subscribe`，与 App Proxy 的 prefix、subpath 一致。
-4. 到合作伙伴后台确认该应用版本已经发布。本应用在代码里是 App Store 分发（`AppDistribution.AppStore`）。开发店铺可以安装已发布版本；要给任意商家安装，还需要在合作伙伴后台提交 App Store 审核。`customers/data_request` 目前只把查询记到日志，审核前需要单独处理向顾客提供数据的流程。
+4. 到合作伙伴后台确认该应用版本已经发布。本应用在代码里是 App Store 分发（`AppDistribution.AppStore`）。开发店铺可以安装已发布版本；要给任意商家安装，还需要在合作伙伴后台提交 App Store 审核。顾客数据请求会记在「订阅者」页面，并在已保存发件邮箱时把摘要发到该邮箱。隐私政策地址是 `https://notify.nxedc.net/privacy`。
 
 ## 10. 上线后自检
 

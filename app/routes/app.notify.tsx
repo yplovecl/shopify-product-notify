@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { useFetcher, useLoaderData } from "@remix-run/react";
+import { useFetcher, useLoaderData, useLocation } from "@remix-run/react";
 import {
   Banner,
   BlockStack,
@@ -10,16 +10,20 @@ import {
   Page,
   Select,
   Text,
+  TextField,
   Thumbnail,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { NewProductNotification } from "../emails/NewProductNotification";
 import { formatFromAddress } from "../email";
 import db from "../db.server";
+import { localeFromRequest, translate } from "../i18n";
 import { getResend } from "../resend.server";
 import { authenticate } from "../shopify.server";
+import { unsubscribeUrl } from "../unsubscribe.server";
 
 const SEND_INTERVAL_MS = 600;
+const BATCH_SIZE = 15;
 
 type ProductNode = {
   id: string;
@@ -52,6 +56,10 @@ type NotifyResult = {
   ok: boolean;
   sent: number;
   failed: number;
+  done: boolean;
+  afterId: number;
+  nextAfterId: number;
+  runId: number;
   message: string;
 };
 
@@ -59,8 +67,17 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function rejected(message: string): NotifyResult {
-  return { ok: false, sent: 0, failed: 0, message };
+function rejected(message: string, runId = 0): NotifyResult {
+  return {
+    ok: false,
+    sent: 0,
+    failed: 0,
+    done: true,
+    afterId: 0,
+    nextAfterId: 0,
+    runId,
+    message,
+  };
 }
 
 function productUrlFor(
@@ -78,8 +95,22 @@ function productUrlFor(
   }
 }
 
+function productQuery(raw: string | null) {
+  const term = (raw ?? "").trim().slice(0, 80).replace(/["\\]/g, "");
+  if (!term) return { query: "status:active", sortKey: "UPDATED_AT", reverse: true, term: "" };
+  return {
+    query: `status:active title:*${term}*`,
+    sortKey: "TITLE",
+    reverse: false,
+    term,
+  };
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+  const locale = localeFromRequest(request);
+  const t = translate(locale);
+  const search = productQuery(new URL(request.url).searchParams.get("q"));
   const [subscriberCount, sender] = await Promise.all([
     db.subscriber.count({ where: { shop: session.shop } }),
     db.shopSender.findUnique({ where: { shop: session.shop } }),
@@ -87,8 +118,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const response = await admin.graphql(
     `#graphql
-      query NotifyProductList {
-        products(first: 50, sortKey: UPDATED_AT, reverse: true, query: "status:active") {
+      query NotifyProductList($query: String!, $sortKey: ProductSortKeys!, $reverse: Boolean!) {
+        products(first: 50, sortKey: $sortKey, reverse: $reverse, query: $query) {
           nodes {
             id
             title
@@ -99,10 +130,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
       }`,
+    {
+      variables: {
+        query: search.query,
+        sortKey: search.sortKey,
+        reverse: search.reverse,
+      },
+    },
   );
   const payload = (await response.json()) as ProductsQuery;
 
   return {
+    locale,
+    query: search.term,
+    title: t("notifyTitle"),
+    subtitle: t("notifySubtitle", { count: subscriberCount }),
     products: payload.data?.products?.nodes ?? [],
     subscriberCount,
     apiKeyConfigured: Boolean(process.env.RESEND_API_KEY),
@@ -110,6 +152,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? formatFromAddress(sender.fromName, sender.fromEmail)
       : "",
     error: payload.errors?.map((item) => item.message).join("; ") ?? null,
+    noKey: t("notifyNoKey"),
+    noSender: t("notifyNoSender"),
+    searchLabel: t("notifySearch"),
+    searchButton: t("notifySearchButton"),
+    pickLabel: t("notifyPick"),
+    noneLabel: t("notifyNone"),
+    preview: t("notifyPreview"),
+    sendLabel: t("notifySend"),
+    hint: t("notifyHint"),
   };
 };
 
@@ -117,26 +168,27 @@ export const action = async ({
   request,
 }: ActionFunctionArgs): Promise<NotifyResult> => {
   const { admin, session } = await authenticate.admin(request);
+  const locale = localeFromRequest(request);
+  const t = translate(locale);
   const formData = await request.formData();
   const productIdField = formData.get("productId");
-  const productId =
-    typeof productIdField === "string" ? productIdField : "";
+  const productId = typeof productIdField === "string" ? productIdField : "";
+  const afterRaw = Number(formData.get("afterId") || 0);
+  const afterId = Number.isFinite(afterRaw) && afterRaw > 0 ? afterRaw : 0;
+  const runRaw = Number(formData.get("runId") || 0);
+  const runId = Number.isFinite(runRaw) && runRaw > 0 ? runRaw : 0;
 
   if (!productId.startsWith("gid://shopify/Product/")) {
-    return rejected("请选择要通知的商品");
+    return rejected(t("notifySelectProduct"), runId);
   }
 
   const resend = getResend();
-  if (!resend) {
-    return rejected("服务器尚未配置 RESEND_API_KEY");
-  }
+  if (!resend) return rejected(t("notifyNoKey"), runId);
 
   const sender = await db.shopSender.findUnique({
     where: { shop: session.shop },
   });
-  if (!sender) {
-    return rejected("请先在「发件设置」填写本店发件人");
-  }
+  if (!sender) return rejected(t("notifyNoSender"), runId);
   const from = formatFromAddress(sender.fromName, sender.fromEmail);
 
   const response = await admin.graphql(
@@ -159,27 +211,35 @@ export const action = async ({
   const payload = (await response.json()) as ProductQuery;
 
   if (payload.errors?.length) {
-    return rejected(payload.errors.map((item) => item.message).join("; "));
+    return rejected(payload.errors.map((item) => item.message).join("; "), runId);
   }
 
   const product = payload.data?.product;
-  if (!product) {
-    return rejected("找不到该商品");
-  }
+  if (!product) return rejected(t("notifyMissingProduct"), runId);
 
   const productUrl = productUrlFor(session.shop, product);
-  if (!productUrl) {
-    return rejected("无法生成商品链接");
-  }
+  if (!productUrl) return rejected(t("notifyBadUrl"), runId);
 
   const subscribers = await db.subscriber.findMany({
-    where: { shop: session.shop },
-    select: { email: true },
+    where: { shop: session.shop, id: { gt: afterId } },
+    select: { id: true, email: true },
     orderBy: { id: "asc" },
+    take: BATCH_SIZE,
   });
 
   if (subscribers.length === 0) {
-    return rejected("当前店铺还没有订阅者");
+    return afterId === 0
+      ? rejected(t("notifyNoSubscribers"), runId)
+      : {
+          ok: true,
+          sent: 0,
+          failed: 0,
+          done: true,
+          afterId,
+          nextAfterId: afterId,
+          runId,
+          message: "",
+        };
   }
 
   const shopName = payload.data?.shop?.name || session.shop;
@@ -190,20 +250,22 @@ export const action = async ({
   let sent = 0;
   let failed = 0;
 
-  // Resend 免费版约 2 req/s，串行发送并在两封之间等待。
   for (let index = 0; index < subscribers.length; index += 1) {
     const subscriber = subscribers[index]!;
     try {
       const { error } = await resend.emails.send({
         from,
         to: subscriber.email,
-        subject: `新品上架：${product.title}`,
+        subject: t("emailSubject", { title: product.title }),
         react: (
           <NewProductNotification
             productTitle={product.title}
             productImageUrl={safeImageUrl}
             productUrl={productUrl}
-            shopName={shopName}
+            intro={t("emailHello", { shop: shopName })}
+            buttonLabel={t("emailButton")}
+            unsubscribeUrl={unsubscribeUrl(session.shop, subscriber.email, locale)}
+            unsubscribeLabel={t("emailUnsubscribe")}
           />
         ),
       });
@@ -223,114 +285,189 @@ export const action = async ({
     }
   }
 
+  const nextAfterId = subscribers[subscribers.length - 1]!.id;
   return {
     ok: failed === 0,
     sent,
     failed,
-    message: `发送完成：成功 ${sent} 封，失败 ${failed} 封`,
+    done: subscribers.length < BATCH_SIZE,
+    afterId,
+    nextAfterId,
+    runId,
+    message: "",
   };
 };
 
 export default function NotifyPage() {
-  const { products, subscriberCount, apiKeyConfigured, fromLabel, error } =
-    useLoaderData<typeof loader>();
-  const canSend = apiKeyConfigured && Boolean(fromLabel);
+  const data = useLoaderData<typeof loader>();
+  const { search } = useLocation();
+  const t = translate(data.locale);
+  const canSend = data.apiKeyConfigured && Boolean(data.fromLabel);
   const fetcher = useFetcher<typeof action>();
-  const [productId, setProductId] = useState(products[0]?.id ?? "");
-  const selected = products.find((product) => product.id === productId);
-  const submitting =
-    fetcher.state === "submitting" || fetcher.state === "loading";
+  const [productId, setProductId] = useState(data.products[0]?.id ?? "");
+  const [query, setQuery] = useState(data.query);
+  const [totals, setTotals] = useState({ sent: 0, failed: 0 });
+  const [running, setRunning] = useState(false);
+  const [runId, setRunId] = useState(0);
+  const applied = useRef("");
+  const selected = data.products.find((product) => product.id === productId);
+  const submitting = running || fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (!data.products.some((product) => product.id === productId)) {
+      setProductId(data.products[0]?.id ?? "");
+    }
+  }, [data.products, productId]);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || !running) return;
+    const batch = fetcher.data;
+    if (batch.runId !== runId) return;
+    const key = `${batch.afterId}:${batch.nextAfterId}:${batch.sent}:${batch.failed}:${batch.done}`;
+    if (applied.current === key) return;
+    applied.current = key;
+    setTotals((current) => ({
+      sent: current.sent + batch.sent,
+      failed: current.failed + batch.failed,
+    }));
+    if (!batch.done) {
+      const body = new FormData();
+      body.set("productId", productId);
+      body.set("afterId", String(batch.nextAfterId));
+      body.set("runId", String(runId));
+      fetcher.submit(body, { method: "post", action: `/app/notify${search}` });
+      return;
+    }
+    setRunning(false);
+  }, [fetcher, productId, runId, running, search]);
+
+  function searchProducts() {
+    const params = new URLSearchParams(search);
+    const term = query.trim();
+    if (term) params.set("q", term);
+    else params.delete("q");
+    window.location.assign(`/app/notify?${params.toString()}`);
+  }
+
+  function startSend() {
+    const nextRun = runId + 1;
+    applied.current = "";
+    setRunId(nextRun);
+    setTotals({ sent: 0, failed: 0 });
+    setRunning(true);
+    const body = new FormData();
+    body.set("productId", productId);
+    body.set("afterId", "0");
+    body.set("runId", String(nextRun));
+    fetcher.submit(body, { method: "post", action: `/app/notify${search}` });
+  }
+
+  const stopped = !running && fetcher.state === "idle" && fetcher.data;
+  const status = running
+    ? t("notifyProgress", totals)
+    : stopped && fetcher.data?.message
+      ? fetcher.data.message
+      : stopped
+        ? t("notifyDone", totals)
+        : "";
 
   return (
-    <Page
-      title="发送新品通知"
-      subtitle={`将发送给当前店铺的 ${subscriberCount} 位订阅者`}
-    >
-      <TitleBar title="发送新品通知" />
+    <Page title={data.title} subtitle={data.subtitle}>
+      <TitleBar title={data.title} />
       <BlockStack gap="400">
-        {!apiKeyConfigured && (
+        {!data.apiKeyConfigured && (
           <Banner tone="warning">
-            <p>服务器尚未配置 RESEND_API_KEY，暂时不能发信。</p>
+            <p>{data.noKey}</p>
           </Banner>
         )}
-        {apiKeyConfigured && !fromLabel && (
+        {data.apiKeyConfigured && !data.fromLabel && (
           <Banner tone="warning">
-            <p>请先在「发件设置」填写本店的发件名称和邮箱。</p>
+            <p>{data.noSender}</p>
           </Banner>
         )}
-        {fromLabel && (
+        {data.fromLabel && (
           <Banner tone="info">
-            <p>本店将以 {fromLabel} 发信，不会使用其他店铺的发件人。</p>
+            <p>{t("notifyFrom", { from: data.fromLabel })}</p>
           </Banner>
         )}
-        {error && (
+        {data.error && (
           <Banner tone="critical">
-            <p>{error}</p>
+            <p>{data.error}</p>
           </Banner>
         )}
-        {fetcher.data?.message && (
+        {status && (
           <Banner
             tone={
-              fetcher.data.ok
-                ? "success"
-                : fetcher.data.sent > 0
-                  ? "warning"
-                  : "critical"
+              running
+                ? "info"
+                : fetcher.data?.ok === false && totals.sent === 0
+                  ? "critical"
+                  : totals.failed > 0
+                    ? "warning"
+                    : "success"
             }
           >
-            <p>{fetcher.data.message}</p>
+            <p>{status}</p>
           </Banner>
         )}
         <Card>
-          <fetcher.Form method="post">
-            <input type="hidden" name="productId" value={productId} />
-            <BlockStack gap="400">
-              <Select
-                label="选择商品"
-                options={
-                  products.length === 0
-                    ? [{ label: "没有在售商品", value: "" }]
-                    : products.map((product) => ({
-                        label: product.title,
-                        value: product.id,
-                      }))
-                }
-                value={productId}
-                disabled={products.length === 0}
-                onChange={setProductId}
-              />
-              {selected && (
-                <InlineStack gap="300" blockAlign="center">
-                  {selected.featuredImage?.url ? (
-                    <Thumbnail
-                      source={selected.featuredImage.url}
-                      alt={selected.title}
-                      size="large"
-                    />
-                  ) : null}
-                  <BlockStack gap="100">
-                    <Text as="h2" variant="headingMd">
-                      {selected.title}
-                    </Text>
-                    <Text as="p" variant="bodyMd">
-                      邮件会包含商品名称、图片和商品链接。
-                    </Text>
-                  </BlockStack>
-                </InlineStack>
-              )}
-              <Button
-                variant="primary"
-                submit
-                loading={submitting}
-                disabled={!productId || subscriberCount === 0 || !canSend}
-              >
-                发送通知
-              </Button>
-              <Text as="p" variant="bodySm" tone="subdued">
-                列表显示最近更新的 50 个在售商品。发信按顺序进行，订阅者较多时请保持页面打开。
-              </Text>
-            </BlockStack>
-          </fetcher.Form>
+          <BlockStack gap="400">
+            <InlineStack gap="300" blockAlign="end">
+              <div style={{ flex: 1 }}>
+                <TextField
+                  label={data.searchLabel}
+                  value={query}
+                  onChange={setQuery}
+                  autoComplete="off"
+                />
+              </div>
+              <Button onClick={searchProducts}>{data.searchButton}</Button>
+            </InlineStack>
+            <Select
+              label={data.pickLabel}
+              options={
+                data.products.length === 0
+                  ? [{ label: data.noneLabel, value: "" }]
+                  : data.products.map((product) => ({
+                      label: product.title,
+                      value: product.id,
+                    }))
+              }
+              value={productId}
+              disabled={data.products.length === 0}
+              onChange={setProductId}
+            />
+            {selected && (
+              <InlineStack gap="300" blockAlign="center">
+                {selected.featuredImage?.url ? (
+                  <Thumbnail
+                    source={selected.featuredImage.url}
+                    alt={selected.title}
+                    size="large"
+                  />
+                ) : null}
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    {selected.title}
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    {data.preview}
+                  </Text>
+                </BlockStack>
+              </InlineStack>
+            )}
+            <Button
+              variant="primary"
+              loading={submitting}
+              disabled={!productId || data.subscriberCount === 0 || !canSend}
+              onClick={startSend}
+            >
+              {data.sendLabel}
+            </Button>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {data.hint}
+            </Text>
+          </BlockStack>
         </Card>
       </BlockStack>
     </Page>

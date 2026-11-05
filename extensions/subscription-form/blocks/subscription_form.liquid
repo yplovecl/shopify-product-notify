@@ -1,3 +1,18 @@
+{% assign lang = request.locale.iso_code | downcase %}
+{% if lang contains "zh" %}
+  {% assign npn_placeholder = "输入邮箱" %}
+  {% assign npn_network = "网络错误，请稍后重试" %}
+  {% assign npn_failed = "订阅失败，请稍后重试" %}
+  {% assign npn_success = "订阅成功" %}
+  {% assign npn_locale = "zh" %}
+{% else %}
+  {% assign npn_placeholder = "Email address" %}
+  {% assign npn_network = "Network error. Try again." %}
+  {% assign npn_failed = "Could not subscribe. Try again." %}
+  {% assign npn_success = "Subscribed" %}
+  {% assign npn_locale = "en" %}
+{% endif %}
+
 <div class="npn-wrap" {{ block.shopify_attributes }}>
   {% if block.settings.heading != blank %}
     <h2 class="npn-heading">{{ block.settings.heading }}</h2>
@@ -6,15 +21,20 @@
     id="sub-form-{{ block.id }}"
     class="npn-form"
     data-proxy-path="{{ block.settings.proxy_path | escape }}"
+    data-locale="{{ npn_locale }}"
+    data-msg-network="{{ npn_network | escape }}"
+    data-msg-failed="{{ npn_failed | escape }}"
+    data-msg-success="{{ npn_success | escape }}"
   >
     <input type="hidden" name="shop" value="{{ shop.permanent_domain }}">
+    <input type="hidden" name="locale" value="{{ npn_locale }}">
     <input
       type="email"
       name="email"
       required
       autocomplete="email"
-      placeholder="输入邮箱"
-      aria-label="输入邮箱"
+      placeholder="{{ npn_placeholder }}"
+      aria-label="{{ npn_placeholder }}"
     >
     <button type="submit">{{ block.settings.button_label }}</button>
     <p class="npn-message" data-npn-message hidden></p>
@@ -23,7 +43,7 @@
 
 {% schema %}
 {
-  "name": "新品订阅",
+  "name": "New product alerts",
   "target": "section",
   "stylesheet": "subscription-form.css",
   "javascript": "subscription-form.js",
@@ -31,21 +51,21 @@
     {
       "type": "text",
       "id": "heading",
-      "label": "标题",
-      "default": "订阅新品通知"
+      "label": "Heading",
+      "default": "Get new product alerts"
     },
     {
       "type": "text",
       "id": "button_label",
-      "label": "按钮文字",
-      "default": "订阅"
+      "label": "Button label",
+      "default": "Subscribe"
     },
     {
       "type": "text",
       "id": "proxy_path",
-      "label": "订阅接口路径",
+      "label": "Subscribe path",
       "default": "/apps/subscribe",
-      "info": "需与 shopify.app.toml 中 App Proxy 的 prefix 和 subpath 一致。"
+      "info": "Must match the app proxy prefix and subpath in shopify.app.toml."
     }
   ]
 }

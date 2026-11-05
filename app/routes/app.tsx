@@ -5,6 +5,7 @@ import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
+import { localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
@@ -12,21 +13,25 @@ export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return {
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    locale: localeFromRequest(request),
+  };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, locale } = useLoaderData<typeof loader>();
+  const t = translate(locale);
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
         <Link to="/app" rel="home">
-          首页
+          {t("navHome")}
         </Link>
-        <Link to="/app/subscribers">订阅者</Link>
-        <Link to="/app/settings">发件设置</Link>
-        <Link to="/app/notify">发送通知</Link>
+        <Link to="/app/subscribers">{t("navSubscribers")}</Link>
+        <Link to="/app/settings">{t("navSettings")}</Link>
+        <Link to="/app/notify">{t("navNotify")}</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>

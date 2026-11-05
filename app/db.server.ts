@@ -16,6 +16,7 @@ export function deleteShopRecords(shop: string) {
   return prisma.$transaction([
     prisma.subscriber.deleteMany({ where: { shop } }),
     prisma.shopSender.deleteMany({ where: { shop } }),
+    prisma.customerDataRequest.deleteMany({ where: { shop } }),
   ]);
 }
 

@@ -5,6 +5,7 @@ import { Banner, BlockStack, Button, Card, Page, TextField } from "@shopify/pola
 import { TitleBar } from "@shopify/app-bridge-react";
 import { formatFromAddress, normalizeEmail } from "../email";
 import db from "../db.server";
+import { localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
 
 type SettingsResult = {
@@ -14,12 +15,21 @@ type SettingsResult = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  const locale = localeFromRequest(request);
+  const t = translate(locale);
   const sender = await db.shopSender.findUnique({
     where: { shop: session.shop },
   });
 
   return {
-    shop: session.shop,
+    locale,
+    title: t("settingsTitle"),
+    subtitle: t("settingsSubtitle", { shop: session.shop }),
+    nameLabel: t("settingsName"),
+    nameHelp: t("settingsNameHelp"),
+    emailLabel: t("settingsEmail"),
+    emailHelp: t("settingsEmailHelp"),
+    saveLabel: t("settingsSave"),
     fromName: sender?.fromName ?? "",
     fromEmail: sender?.fromEmail ?? "",
   };
@@ -29,6 +39,7 @@ export const action = async ({
   request,
 }: ActionFunctionArgs): Promise<SettingsResult> => {
   const { session } = await authenticate.admin(request);
+  const t = translate(localeFromRequest(request));
   const formData = await request.formData();
   const fromNameField = formData.get("fromName");
   const fromName =
@@ -36,11 +47,11 @@ export const action = async ({
   const fromEmail = normalizeEmail(formData.get("fromEmail"));
 
   if (fromName.length > 80) {
-    return { ok: false, message: "发件人名称不能超过 80 个字符" };
+    return { ok: false, message: t("settingsNameTooLong") };
   }
 
   if (!fromEmail) {
-    return { ok: false, message: "请填写有效的发件邮箱" };
+    return { ok: false, message: t("settingsEmailInvalid") };
   }
 
   await db.shopSender.upsert({
@@ -51,7 +62,9 @@ export const action = async ({
 
   return {
     ok: true,
-    message: `已保存本店发件人：${formatFromAddress(fromName, fromEmail)}`,
+    message: t("settingsSaved", {
+      from: formatFromAddress(fromName, fromEmail),
+    }),
   };
 };
 
@@ -69,11 +82,8 @@ export default function SettingsPage() {
   }, [data.fromName, data.fromEmail]);
 
   return (
-    <Page
-      title="发件设置"
-      subtitle={`只对 ${data.shop} 生效，其他店铺需要各自填写`}
-    >
-      <TitleBar title="发件设置" />
+    <Page title={data.title} subtitle={data.subtitle}>
+      <TitleBar title={data.title} />
       <BlockStack gap="400">
         {fetcher.data?.message && (
           <Banner tone={fetcher.data.ok ? "success" : "critical"}>
@@ -84,24 +94,24 @@ export default function SettingsPage() {
           <fetcher.Form method="post">
             <BlockStack gap="400">
               <TextField
-                label="发件人名称"
+                label={data.nameLabel}
                 name="fromName"
                 value={fromName}
                 onChange={setFromName}
                 autoComplete="off"
-                helpText="收件人看到的名称，例如店铺名。可以留空。"
+                helpText={data.nameHelp}
               />
               <TextField
-                label="发件邮箱"
+                label={data.emailLabel}
                 name="fromEmail"
                 type="email"
                 value={fromEmail}
                 onChange={setFromEmail}
                 autoComplete="off"
-                helpText="必须是当前 Resend 账号里已验证域名下的邮箱。换一家店要重新保存，不会沿用其他店的地址。"
+                helpText={data.emailHelp}
               />
               <Button variant="primary" submit loading={submitting}>
-                保存
+                {data.saveLabel}
               </Button>
             </BlockStack>
           </fetcher.Form>

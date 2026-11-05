@@ -13,10 +13,17 @@
     var button = form.querySelector("button[type='submit']");
     var message = form.querySelector("[data-npn-message]");
     var endpoint = form.getAttribute("data-proxy-path") || "/apps/subscribe";
+    var locale = form.getAttribute("data-locale") || "en";
+    var separator = endpoint.indexOf("?") >= 0 ? "&" : "?";
+    var successText = form.getAttribute("data-msg-success") || "Subscribed";
+    var failedText =
+      form.getAttribute("data-msg-failed") || "Could not subscribe. Try again.";
+    var networkText =
+      form.getAttribute("data-msg-network") || "Network error. Try again.";
 
     if (button) button.disabled = true;
 
-    fetch(endpoint, {
+    fetch(endpoint + separator + "locale=" + encodeURIComponent(locale), {
       method: "POST",
       body: new FormData(form),
     })
@@ -27,13 +34,12 @@
         if (!message) return;
         message.hidden = false;
         message.textContent =
-          (data && data.message) ||
-          (data && data.success ? "订阅成功" : "订阅失败，请稍后重试");
+          (data && data.message) || (data && data.success ? successText : failedText);
       })
       .catch(function () {
         if (!message) return;
         message.hidden = false;
-        message.textContent = "网络错误，请稍后重试";
+        message.textContent = networkText;
       })
       .finally(function () {
         if (button) button.disabled = false;

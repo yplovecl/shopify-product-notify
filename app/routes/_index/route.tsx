@@ -17,16 +17,16 @@ export default function Index() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>新品订阅通知</h1>
-        <p className={styles.text}>输入店铺域名以打开应用。</p>
+        <h1 className={styles.heading}>New product alerts</h1>
+        <p className={styles.text}>Enter the shop domain to open the app.</p>
         <Form className={styles.form} method="post" action="/auth/login">
           <label className={styles.label}>
-            <span>店铺域名</span>
+            <span>Shop domain</span>
             <input className={styles.input} type="text" name="shop" />
-            <span>例如 axmax-2.myshopify.com</span>
+            <span>example.myshopify.com</span>
           </label>
           <button className={styles.button} type="submit">
-            登录
+            Log in
           </button>
         </Form>
       </div>

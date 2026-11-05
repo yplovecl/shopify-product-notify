@@ -12,7 +12,10 @@ export interface NewProductNotificationProps {
   productTitle: string;
   productImageUrl?: string | null;
   productUrl: string;
-  shopName: string;
+  intro: string;
+  buttonLabel: string;
+  unsubscribeUrl: string;
+  unsubscribeLabel: string;
 }
 
 const body = {
@@ -75,10 +78,13 @@ export function NewProductNotification({
   productTitle,
   productImageUrl,
   productUrl,
-  shopName,
+  intro,
+  buttonLabel,
+  unsubscribeUrl,
+  unsubscribeLabel,
 }: NewProductNotificationProps) {
   return (
-    <Html lang="zh-CN">
+    <Html>
       <Body style={body}>
         <Container style={container}>
           {productImageUrl ? (
@@ -90,10 +96,15 @@ export function NewProductNotification({
             />
           ) : null}
           <Heading style={heading}>{productTitle}</Heading>
-          <Text style={text}>您好！您订阅的店铺 {shopName} 上新了：</Text>
+          <Text style={text}>{intro}</Text>
           <Button href={productUrl} style={button}>
-            查看商品详情
+            {buttonLabel}
           </Button>
+          <Text style={{ ...text, fontSize: "13px", margin: "24px 0 0" }}>
+            <a href={unsubscribeUrl} style={{ color: "#616161" }}>
+              {unsubscribeLabel}
+            </a>
+          </Text>
         </Container>
       </Body>
     </Html>

@@ -12,27 +12,33 @@ import {
 import { TitleBar } from "@shopify/app-bridge-react";
 import { formatFromAddress } from "../email";
 import db from "../db.server";
+import { localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
-
-const pages = [
-  { path: "/app/settings", label: "发件设置", primary: true },
-  { path: "/app/subscribers", label: "查看订阅者", primary: false },
-  { path: "/app/notify", label: "发送通知", primary: false },
-] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  const locale = localeFromRequest(request);
+  const t = translate(locale);
   const [count, sender] = await Promise.all([
     db.subscriber.count({ where: { shop: session.shop } }),
     db.shopSender.findUnique({ where: { shop: session.shop } }),
   ]);
 
   return {
+    locale,
+    title: t("homeTitle"),
     shop: session.shop,
-    count,
-    fromLabel: sender
-      ? formatFromAddress(sender.fromName, sender.fromEmail)
-      : "",
+    summary: t("homeCount", { count }),
+    senderLine: sender
+      ? t("homeSender", {
+          from: formatFromAddress(sender.fromName, sender.fromEmail),
+        })
+      : t("homeNoSender"),
+    steps: [t("homeStepBlock"), t("homeStepSender"), t("homeStepNotify")],
+    settingsLabel: t("homeSettings"),
+    subscribersLabel: t("homeSubscribers"),
+    notifyLabel: t("homeNotify"),
+    privacyLabel: t("homePrivacy"),
   };
 };
 
@@ -44,33 +50,30 @@ function openEmbeddedPage(path: string, search: string) {
 }
 
 export default function Index() {
-  const { shop, count, fromLabel } = useLoaderData<typeof loader>();
+  const data = useLoaderData<typeof loader>();
   const { search } = useLocation();
+  const pages = [
+    { path: "/app/settings", label: data.settingsLabel, primary: true },
+    { path: "/app/subscribers", label: data.subscribersLabel, primary: false },
+    { path: "/app/notify", label: data.notifyLabel, primary: false },
+    { path: "/privacy", label: data.privacyLabel, primary: false },
+  ];
 
   return (
-    <Page title="新品订阅通知">
-      <TitleBar title="新品订阅通知" />
+    <Page title={data.title}>
+      <TitleBar title={data.title} />
       <Card>
         <BlockStack gap="400">
           <Text as="h2" variant="headingMd">
-            {shop}
+            {data.shop}
           </Text>
           <Text as="p" variant="bodyMd">
-            当前已有 {count} 位顾客订阅新品通知。
-            {fromLabel
-              ? `本店发件人是 ${fromLabel}。`
-              : "本店还没有发件人，请先到「发件设置」填写。"}
+            {data.summary} {data.senderLine}
           </Text>
           <List>
-            <List.Item>
-              在线商店 → 自定义 → 应用区块，把「新品订阅」拖到页面上。
-            </List.Item>
-            <List.Item>
-              在「发件设置」保存本店的发件名称和邮箱。每家店单独保存。
-            </List.Item>
-            <List.Item>
-              在「发送通知」选择商品，邮件会用本店发件人寄出。
-            </List.Item>
+            {data.steps.map((step) => (
+              <List.Item key={step}>{step}</List.Item>
+            ))}
           </List>
           <InlineStack gap="300">
             {pages.map((page) => (

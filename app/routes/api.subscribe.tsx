@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { Prisma } from "@prisma/client";
 import db from "../db.server";
 import { normalizeEmail } from "../email";
+import { localeFromRequest, resolveLocale, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
 
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;
@@ -22,22 +23,24 @@ function readShop(...values: Array<string | null | undefined>) {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const t = translate(localeFromRequest(request));
   const url = new URL(request.url);
   if (url.searchParams.has("signature")) {
     await authenticate.public.appProxy(request);
   } else if (process.env.NODE_ENV === "production") {
-    return json({ success: false, message: "未授权的请求" }, 401);
+    return json({ success: false, message: t("subUnauthorized") }, 401);
   }
 
   return json({
     success: true,
-    message: "请使用 POST 提交 email 完成订阅",
+    message: t("subUsePost"),
   });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const t = translate(localeFromRequest(request));
   if (request.method !== "POST") {
-    return json({ success: false, message: "仅支持 POST" }, 405);
+    return json({ success: false, message: t("subPostOnly") }, 405);
   }
 
   const url = new URL(request.url);
@@ -50,24 +53,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       trustedShop = readShop(session?.shop, url.searchParams.get("shop"));
     } catch (error) {
       if (error instanceof Response) {
-        return json(
-          { success: false, message: "订阅校验失败，请刷新页面后重试" },
-          401,
-        );
+        return json({ success: false, message: t("subBadSignature") }, 401);
       }
       throw error;
     }
   } else if (process.env.NODE_ENV === "production") {
-    return json({ success: false, message: "未授权的请求" }, 401);
+    return json({ success: false, message: t("subUnauthorized") }, 401);
   }
 
   let formData: FormData;
   try {
     formData = await request.formData();
   } catch {
-    return json({ success: false, message: "无法读取表单" }, 400);
+    return json({ success: false, message: t("subBadForm") }, 400);
   }
 
+  const localeField = formData.get("locale");
+  const tForm = translate(
+    typeof localeField === "string" && localeField
+      ? resolveLocale(localeField)
+      : localeFromRequest(request),
+  );
   const shopField = formData.get("shop");
   const email = normalizeEmail(formData.get("email"));
   const shop =
@@ -79,24 +85,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
 
   if (!shop) {
-    return json({ success: false, message: "无法识别店铺" }, 400);
+    return json({ success: false, message: tForm("subBadShop") }, 400);
   }
 
   if (!email) {
-    return json({ success: false, message: "邮箱格式不正确" }, 400);
+    return json({ success: false, message: tForm("subBadEmail") }, 400);
   }
 
   try {
     await db.subscriber.create({
       data: { shop, email },
     });
-    return json({ success: true, message: "订阅成功" });
+    return json({ success: true, message: tForm("subSuccess") });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return json({ success: true, message: "该邮箱已订阅，无需重复提交" });
+      return json({ success: true, message: tForm("subAlready") });
     }
     throw error;
   }
