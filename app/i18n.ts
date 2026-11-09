@@ -110,6 +110,24 @@ const copy = {
     landingLanguage: "Language",
     loginMissingShop: "Please enter your shop domain to log in",
     loginInvalidShop: "Please enter a valid shop domain to log in",
+    privacyTitle: "Privacy policy",
+    privacyIntro:
+      "NX Swift stores only what a shop needs to send new-product emails that a person asked for.",
+    privacyDataTitle: "Data we store",
+    privacyDataShop: "The shop domain, such as example.myshopify.com.",
+    privacyDataEmail:
+      "The email address a visitor submits in the storefront form, and the time they subscribed.",
+    privacyDataSender: "The sender name and sender email a merchant saves for that shop.",
+    privacyDataRequest:
+      "A customer data request from Shopify: the email, whether a subscription exists, and when the request arrived.",
+    privacyNoSale:
+      "We do not sell this data. Mail is sent through Resend from an address on a domain verified for this app. The shop's own email is only the reply-to address. Shops do not connect a separate Resend account.",
+    privacyKeepTitle: "How long we keep it",
+    privacyKeep:
+      "A subscription is deleted when the person uses the unsubscribe link in an email, when Shopify sends a customer redact webhook for that email, or when the shop uninstalls the app or Shopify sends a shop redact webhook. Sender settings and stored data requests for that shop are deleted with the shop data.",
+    privacyRequestsTitle: "Requests",
+    privacyRequests:
+      "Shoppers unsubscribe from the link in the email, or ask the store to remove them. Merchants see customer data requests inside the app under Subscribers. If a sender email is saved, the same summary is emailed there.",
   },
   zh: {
     navHome: "首页",
@@ -214,6 +232,22 @@ const copy = {
     landingLanguage: "语言",
     loginMissingShop: "请输入店铺域名后再登录",
     loginInvalidShop: "请输入有效的店铺域名后再登录",
+    privacyTitle: "隐私政策",
+    privacyIntro: "玄鸟只保存店铺发送顾客主动订阅的新品邮件所需要的信息。",
+    privacyDataTitle: "我们保存的数据",
+    privacyDataShop: "店铺域名，例如 example.myshopify.com。",
+    privacyDataEmail: "访客在店面表单提交的邮箱，以及订阅时间。",
+    privacyDataSender: "商家为本店保存的发件人名称和回复邮箱。",
+    privacyDataRequest:
+      "Shopify 发来的顾客数据请求：邮箱、是否存在订阅，以及请求到达的时间。",
+    privacyNoSale:
+      "我们不会出售这些数据。邮件通过 Resend，从本应用已验证域名上的地址发出。店铺自己的邮箱只用作回复地址。店铺不能接入单独的 Resend 账号。",
+    privacyKeepTitle: "保存期限",
+    privacyKeep:
+      "顾客使用邮件里的退订链接、Shopify 针对该邮箱发送顾客删除通知、店铺卸载应用，或 Shopify 发送店铺删除通知时，对应的订阅会被删除。该店铺的发件设置和已保存的数据请求会随店铺数据一起删除。",
+    privacyRequestsTitle: "请求",
+    privacyRequests:
+      "顾客可以通过邮件中的退订链接退订，也可以请店铺删除自己的记录。商家在应用的「订阅者」页面查看顾客数据请求。如果已保存回复邮箱，同一份摘要也会发到该邮箱。",
   },
 } as const;
 

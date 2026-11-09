@@ -1,55 +1,100 @@
+import type { LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
+import { json } from "@remix-run/node";
+import { Link, useLoaderData, useLocation } from "@remix-run/react";
+import {
+  localeCookieHeader,
+  localeForLanding,
+  resolveLocale,
+  translate,
+  type CopyKey,
+  type Locale,
+} from "../i18n";
+
+const storedKeys = [
+  "privacyDataShop",
+  "privacyDataEmail",
+  "privacyDataSender",
+  "privacyDataRequest",
+] as const satisfies readonly CopyKey[];
+
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const locale = data?.locale === "zh" ? "zh" : "en";
+  const t = translate(locale);
+  return [{ title: `${t("privacyTitle")} · ${t("landingTitle")}` }];
+};
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const locale = await localeForLanding(request);
+  const headers = url.searchParams.get("locale")
+    ? {
+        "Set-Cookie": await localeCookieHeader(
+          request,
+          resolveLocale(url.searchParams.get("locale")),
+        ),
+      }
+    : undefined;
+
+  return json({ locale }, { headers });
+};
+
+function localeSearch(search: string, locale: Locale) {
+  const params = new URLSearchParams(search);
+  params.set("locale", locale);
+  return `?${params.toString()}`;
+}
+
 export default function PrivacyPolicy() {
+  const { locale } = useLoaderData<typeof loader>();
+  const { search } = useLocation();
+  const t = translate(locale);
+  const lang = locale === "zh" ? "zh-CN" : "en";
+
   return (
+    <>
+    <style>{`html, body { background: #ffffff; color: #202223; }`}</style>
     <main
+      lang={lang}
       style={{
+        background: "#ffffff",
+        boxSizing: "border-box",
+        color: "#202223",
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         lineHeight: 1.6,
-        margin: "32px auto",
+        margin: "0 auto",
         maxWidth: "40rem",
-        padding: "0 16px",
+        minHeight: "100vh",
+        padding: "32px 16px",
       }}
     >
-      <h1>Privacy policy</h1>
-      <p>
-        NX Swift stores only what a shop needs to send new-product emails
-        that a person asked for.
-      </p>
-      <h2>Data we store</h2>
+      <h1>{t("privacyTitle")}</h1>
+      <p>{t("privacyIntro")}</p>
+      <h2>{t("privacyDataTitle")}</h2>
       <ul>
-        <li>The shop domain, such as example.myshopify.com.</li>
-        <li>The email address a visitor submits in the storefront form, and the time they subscribed.</li>
-        <li>The sender name and sender email a merchant saves for that shop.</li>
-        <li>
-          A customer data request from Shopify: the email, whether a subscription
-          exists, and when the request arrived.
-        </li>
+        {storedKeys.map((key) => (
+          <li key={key}>{t(key)}</li>
+        ))}
       </ul>
-      <p>
-        We do not sell this data. Mail is sent through Resend from an address
-        on a domain verified for this app. The shop's own email is only the
-        reply-to address. Shops do not connect a separate Resend account.
-      </p>
-      <h2>How long we keep it</h2>
-      <p>
-        A subscription is deleted when the person uses the unsubscribe link in an
-        email, when Shopify sends a customer redact webhook for that email, or
-        when the shop uninstalls the app or Shopify sends a shop redact webhook.
-        Sender settings and stored data requests for that shop are deleted with
-        the shop data.
-      </p>
-      <h2>Requests</h2>
-      <p>
-        Shoppers unsubscribe from the link in the email, or ask the store to
-        remove them. Merchants see customer data requests inside the app under
-        Subscribers. If a sender email is saved, the same summary is emailed there.
-      </p>
-      <h2>隐私说明</h2>
-      <p>
-        本应用只保存店铺域名、顾客在店面表单提交的邮箱和订阅时间、商家为本店填写的显示名称和回复邮箱，以及
-        Shopify 发来的顾客数据请求。邮件从应用已验证的地址发出，商家邮箱只用来接收回复。商家不能接入单独的
-        Resend 账号。退订、顾客删除请求、卸载应用或店铺数据删除后，相关记录会被删除。
-      </p>
+      <p>{t("privacyNoSale")}</p>
+      <h2>{t("privacyKeepTitle")}</h2>
+      <p>{t("privacyKeep")}</p>
+      <h2>{t("privacyRequestsTitle")}</h2>
+      <p>{t("privacyRequests")}</p>
+      <nav aria-label={t("landingLanguage")} style={{ marginTop: 32 }}>
+        {locale === "zh" ? (
+          <span aria-current="true">中文</span>
+        ) : (
+          <Link to={localeSearch(search, "zh")}>中文</Link>
+        )}
+        <span aria-hidden="true"> · </span>
+        {locale === "en" ? (
+          <span aria-current="true">English</span>
+        ) : (
+          <Link to={localeSearch(search, "en")}>English</Link>
+        )}
+      </nav>
     </main>
+    </>
   );
 }
