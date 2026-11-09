@@ -2,7 +2,7 @@
 
 client_id = "d2a99231e208e14154fb6d409ad60ffb"
 name = "NX Swift"
-application_url = "https://notify.nxedc.net"
+application_url = "https://swift.nxlab.app"
 embedded = true
 
 [build]
@@ -37,9 +37,9 @@ scopes = "read_products,write_app_proxy"
 
 [auth]
 redirect_urls = [
-  "https://notify.nxedc.net/auth/callback",
-  "https://notify.nxedc.net/auth/shopify/callback",
-  "https://notify.nxedc.net/api/auth/callback"
+  "https://swift.nxlab.app/auth/callback",
+  "https://swift.nxlab.app/auth/shopify/callback",
+  "https://swift.nxlab.app/api/auth/callback"
 ]
 
 [app_proxy]
