@@ -40,22 +40,27 @@ export default function Index() {
         <div className={styles.mark} aria-hidden="true">
           <svg viewBox="0 0 64 64" width="64" height="64">
             <rect width="64" height="64" rx="16" fill="#111111" />
-            <path
-              fill="#ffffff"
-              d="M15 25.2c0-1.5 1.2-2.7 2.7-2.7h28.6c1.5 0 2.7 1.2 2.7 2.7v16.1c0 1.5-1.2 2.7-2.7 2.7H17.7c-1.5 0-2.7-1.2-2.7-2.7V25.2Z"
-            />
-            <path
-              fill="none"
-              stroke="#111111"
-              strokeWidth="2.2"
-              strokeLinejoin="round"
-              d="M16.4 24.8 32 35.6 47.6 24.8"
-            />
-            <circle cx="47" cy="19" r="8.5" fill="#ff5a4f" />
-            <path
-              fill="#ffffff"
-              d="M47 13.1 48.2 16.6 51.7 17.8 48.2 19 47 22.5 45.8 19 42.3 17.8 45.8 16.6Z"
-            />
+            <g transform="translate(32 32) scale(1.2) translate(-33.4 -33)">
+              <g fill="#ffffff">
+                <polygon points="40,31 13,12 33,36" />
+                <polygon points="34,33 8,21 29,38" />
+                <polygon points="33,38 15,54 31,42" />
+                <ellipse
+                  cx="40"
+                  cy="35.2"
+                  rx="11"
+                  ry="6.3"
+                  transform="rotate(-12 40 35.2)"
+                />
+                <circle cx="47.6" cy="30.6" r="5.4" />
+                <polygon points="51.2,28.8 58.8,31.6 51.6,34.2" />
+              </g>
+              <circle cx="49.3" cy="29.7" r="1.15" fill="#111111" />
+              <path
+                fill="#ff5a4f"
+                d="M51.6 33c-2.3 2.1-5.6 2.1-7.8.4 1.8-.2 3.7.4 5.1 1.6 1-.6 1.9-1.2 2.7-2z"
+              />
+            </g>
           </svg>
         </div>
         <h1 className={styles.heading}>{t("landingTitle")}</h1>
