@@ -3,15 +3,21 @@ import {
   Button,
   Container,
   Heading,
+  Hr,
   Html,
   Img,
+  Section,
   Text,
 } from "@react-email/components";
 
+export interface NotificationProduct {
+  title: string;
+  imageUrl?: string | null;
+  url: string;
+}
+
 export interface NewProductNotificationProps {
-  productTitle: string;
-  productImageUrl?: string | null;
-  productUrl: string;
+  products: NotificationProduct[];
   intro: string;
   buttonLabel: string;
   unsubscribeUrl: string;
@@ -45,10 +51,10 @@ const image = {
 
 const heading = {
   color: "#111213",
-  fontSize: "24px",
+  fontSize: "22px",
   fontWeight: 700,
   lineHeight: "1.3",
-  margin: "0 0 12px",
+  margin: "0 0 16px",
   textAlign: "center" as const,
 };
 
@@ -74,10 +80,13 @@ const button = {
   textDecoration: "none",
 };
 
+const divider = {
+  borderColor: "#e1e3e5",
+  margin: "28px 0",
+};
+
 export function NewProductNotification({
-  productTitle,
-  productImageUrl,
-  productUrl,
+  products,
   intro,
   buttonLabel,
   unsubscribeUrl,
@@ -87,19 +96,24 @@ export function NewProductNotification({
     <Html>
       <Body style={body}>
         <Container style={container}>
-          {productImageUrl ? (
-            <Img
-              src={productImageUrl}
-              alt={productTitle}
-              width="600"
-              style={image}
-            />
-          ) : null}
-          <Heading style={heading}>{productTitle}</Heading>
           <Text style={text}>{intro}</Text>
-          <Button href={productUrl} style={button}>
-            {buttonLabel}
-          </Button>
+          {products.map((product, index) => (
+            <Section key={`${product.url}-${index}`}>
+              {index > 0 ? <Hr style={divider} /> : null}
+              {product.imageUrl ? (
+                <Img
+                  src={product.imageUrl}
+                  alt={product.title}
+                  width="600"
+                  style={image}
+                />
+              ) : null}
+              <Heading style={heading}>{product.title}</Heading>
+              <Button href={product.url} style={button}>
+                {buttonLabel}
+              </Button>
+            </Section>
+          ))}
           <Text style={{ ...text, fontSize: "13px", margin: "24px 0 0" }}>
             <a href={unsubscribeUrl} style={{ color: "#616161" }}>
               {unsubscribeLabel}
