@@ -1,33 +1,12 @@
 import type { DomainRecords, DomainRegion } from "resend";
+import { DOMAIN_REGIONS, type ShopDomainView, type StoredRecord } from "./domain";
 import db from "./db.server";
 import { emailOnDomain, formatFromAddress, normalizeEmail } from "./email";
 import { getResend } from "./resend.server";
 
-export const DOMAIN_REGIONS = [
-  "us-east-1",
-  "eu-west-1",
-  "sa-east-1",
-  "ap-northeast-1",
-] as const;
+export type { ShopDomainView, StoredRecord };
 
 const DOMAIN_RE = /^(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$/;
-
-export type StoredRecord = {
-  record: string;
-  name: string;
-  type: string;
-  value: string;
-  ttl: string;
-  status: string;
-  priority?: number;
-};
-
-export type ShopDomainView = {
-  name: string;
-  status: string;
-  region: string;
-  records: StoredRecord[];
-};
 
 type DomainFailure =
   | { ok: false; error: "noKey" | "invalid" | "exists" | "taken" | "missing" }

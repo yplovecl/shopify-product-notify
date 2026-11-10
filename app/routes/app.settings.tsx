@@ -15,14 +15,12 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { DOMAIN_REGIONS, type ShopDomainView, type StoredRecord } from "../domain";
 import {
   addShopDomain,
   deleteShopDomain,
-  DOMAIN_REGIONS,
   loadShopDomain,
   verifyShopDomain,
-  type ShopDomainView,
-  type StoredRecord,
 } from "../domain.server";
 import db from "../db.server";
 import { emailOnDomain, formatFromAddress, normalizeEmail } from "../email";
