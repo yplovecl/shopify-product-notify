@@ -91,7 +91,6 @@ SCOPES=read_products,write_app_proxy
 SHOPIFY_APP_URL=https://swift.nxlab.app
 DATABASE_URL=mysql://product_notify:请换成强密码@127.0.0.1:3306/product_notify
 RESEND_API_KEY=Resend 控制台创建的 API Key
-RESEND_FROM_EMAIL=notify@nxedc.net
 ```
 
 | 变量 | 必填 | 说明 |

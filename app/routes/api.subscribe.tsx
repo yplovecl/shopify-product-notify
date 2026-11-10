@@ -58,7 +58,17 @@ async function shopFromProxy(request: Request) {
   }
 }
 
+function logSubscribe(request: Request) {
+  const url = new URL(request.url);
+  console.info(
+    "subscribe",
+    request.method,
+    url.searchParams.has("signature") ? "signed" : "unsigned",
+  );
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  logSubscribe(request);
   const t = translate(await localeFromRequest(request));
   const url = new URL(request.url);
   if (url.searchParams.has("signature")) {
@@ -77,6 +87,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  logSubscribe(request);
   const t = translate(await localeFromRequest(request));
   if (request.method !== "POST") {
     return json({ success: false, message: t("subPostOnly") }, 405);
