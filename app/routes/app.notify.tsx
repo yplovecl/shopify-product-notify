@@ -16,8 +16,8 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { NewProductNotification } from "../emails/NewProductNotification";
-import { formatFromAddress, platformFromEmail } from "../email";
 import db from "../db.server";
+import { shopFromAddress } from "../domain.server";
 import { localeFromRequest, translate } from "../i18n";
 import { getResend } from "../resend.server";
 import { authenticate } from "../shopify.server";
@@ -236,9 +236,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const locale = await localeFromRequest(request);
   const t = translate(locale);
   const search = productQuery(new URL(request.url).searchParams.get("q"));
-  const [subscriberCount, sender] = await Promise.all([
+  const [subscriberCount, domain, address] = await Promise.all([
     db.subscriber.count({ where: { shop: session.shop } }),
-    db.shopSender.findUnique({ where: { shop: session.shop } }),
+    db.shopDomain.findUnique({ where: { shop: session.shop } }),
+    shopFromAddress(session.shop),
   ]);
 
   const response = await admin.graphql(
@@ -273,7 +274,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     },
   );
   const payload = (await response.json()) as ProductsQuery;
-  const platform = platformFromEmail();
+  const apiKeyConfigured = Boolean(process.env.RESEND_API_KEY);
+  const blockMessage = !apiKeyConfigured
+    ? t("notifyNoKey")
+    : !domain
+      ? t("notifyNoDomain")
+      : domain.status !== "verified"
+        ? t("notifyDomainPending", { domain: domain.name })
+        : !address
+          ? t("notifyNoSender", { domain: domain.name })
+          : "";
 
   return {
     locale,
@@ -282,15 +292,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     subtitle: t("notifySubtitle", { count: subscriberCount }),
     products: payload.data?.products?.nodes ?? [],
     subscriberCount,
-    apiKeyConfigured: Boolean(process.env.RESEND_API_KEY),
-    platformConfigured: Boolean(platform),
-    fromLabel:
-      sender && platform ? formatFromAddress(sender.fromName, platform) : "",
-    replyLabel: sender?.fromEmail ?? "",
+    apiKeyConfigured,
+    canSend: blockMessage === "",
+    fromLabel: address?.from ?? "",
+    blockMessage,
     error: payload.errors?.map((item) => item.message).join("; ") ?? null,
-    noKey: t("notifyNoKey"),
-    noFrom: t("notifyNoFrom"),
-    noSender: t("notifyNoSender"),
     searchLabel: t("notifySearch"),
     searchButton: t("notifySearchButton"),
     pickLabel: t("notifyPick"),
@@ -326,14 +332,15 @@ export const action = async ({
 
   const resend = getResend();
   if (!resend) return rejected(t("notifyNoKey"), runId);
-  const platform = platformFromEmail();
-  if (!platform) return rejected(t("notifyNoFrom"), runId);
 
-  const sender = await db.shopSender.findUnique({
-    where: { shop: session.shop },
-  });
-  if (!sender) return rejected(t("notifyNoSender"), runId);
-  const from = formatFromAddress(sender.fromName, platform);
+  const domain = await db.shopDomain.findUnique({ where: { shop: session.shop } });
+  if (!domain) return rejected(t("notifyNoDomain"), runId);
+  if (domain.status !== "verified") {
+    return rejected(t("notifyDomainPending", { domain: domain.name }), runId);
+  }
+  const address = await shopFromAddress(session.shop);
+  if (!address) return rejected(t("notifyNoSender", { domain: domain.name }), runId);
+  const from = address.from;
 
   const ids = [
     ...new Set(
@@ -469,7 +476,6 @@ export const action = async ({
     const emails = await Promise.all(
       subscribers.map(async (subscriber) => ({
         from,
-        replyTo: sender.fromEmail,
         to: subscriber.email,
         subject,
         html: await render(
@@ -553,8 +559,7 @@ export default function NotifyPage() {
   const { search } = useLocation();
   const navigate = useNavigate();
   const t = translate(data.locale);
-  const canSend =
-    data.apiKeyConfigured && data.platformConfigured && Boolean(data.replyLabel);
+  const canSend = data.canSend;
   const fetcher = useFetcher<typeof action>();
   const [productId, setProductId] = useState(data.products[0]?.id ?? "");
   const [variantId, setVariantId] = useState("");
@@ -701,24 +706,14 @@ export default function NotifyPage() {
     <Page title={data.title} subtitle={data.subtitle}>
       <TitleBar title={data.title} />
       <BlockStack gap="400">
-        {!data.apiKeyConfigured && (
+        {data.blockMessage && (
           <Banner tone="warning">
-            <p>{data.noKey}</p>
-          </Banner>
-        )}
-        {data.apiKeyConfigured && !data.platformConfigured && (
-          <Banner tone="warning">
-            <p>{data.noFrom}</p>
-          </Banner>
-        )}
-        {data.apiKeyConfigured && data.platformConfigured && !data.replyLabel && (
-          <Banner tone="warning">
-            <p>{data.noSender}</p>
+            <p>{data.blockMessage}</p>
           </Banner>
         )}
         {data.fromLabel && (
           <Banner tone="info">
-            <p>{t("notifyFrom", { from: data.fromLabel, reply: data.replyLabel })}</p>
+            <p>{t("notifyFrom", { from: data.fromLabel })}</p>
           </Banner>
         )}
         {data.error && (

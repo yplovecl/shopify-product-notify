@@ -50,6 +50,18 @@ model ShopSender {
   updatedAt DateTime @updatedAt
 }
 
+// 每个店铺只能绑定一个发件域名。更换必须先删除再添加。
+model ShopDomain {
+  shop      String   @id
+  resendId  String
+  name      String   @unique
+  status    String
+  region    String
+  records   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model CustomerDataRequest {
   id               Int       @id @default(autoincrement())
   shop             String

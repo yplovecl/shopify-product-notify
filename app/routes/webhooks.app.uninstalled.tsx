@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import db, { deleteShopRecords } from "../db.server";
+import { removeShopDomainRemote } from "../domain.server";
 import { authenticate } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -13,6 +14,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.session.deleteMany({ where: { shop } });
   }
 
+  await removeShopDomainRemote(shop);
   await deleteShopRecords(shop);
 
   return new Response();

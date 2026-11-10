@@ -13,7 +13,8 @@ export function formatFromAddress(fromName: string, fromEmail: string) {
   return `${name} <${email}>`;
 }
 
-/** Address on the app operator's verified Resend domain. Every shop sends from this. */
-export function platformFromEmail() {
-  return normalizeEmail(process.env.RESEND_FROM_EMAIL);
+/** True when the address is on the verified domain or one of its subdomains. */
+export function emailOnDomain(email: string, domain: string) {
+  const host = email.split("@")[1] ?? "";
+  return host === domain || host.endsWith(`.${domain}`);
 }

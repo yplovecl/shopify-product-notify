@@ -10,8 +10,8 @@ import {
   Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { formatFromAddress, platformFromEmail } from "../email";
 import db from "../db.server";
+import { shopFromAddress } from "../domain.server";
 import { localeFromRequest, translate } from "../i18n";
 import { authenticate } from "../shopify.server";
 
@@ -19,25 +19,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = await localeFromRequest(request);
   const t = translate(locale);
-  const [count, sender] = await Promise.all([
+  const [count, domain, address] = await Promise.all([
     db.subscriber.count({ where: { shop: session.shop } }),
-    db.shopSender.findUnique({ where: { shop: session.shop } }),
+    db.shopDomain.findUnique({ where: { shop: session.shop } }),
+    shopFromAddress(session.shop),
   ]);
-  const platform = platformFromEmail();
 
   return {
     locale,
     title: t("homeTitle"),
     shop: session.shop,
     summary: t("homeCount", { count }),
-    senderLine: !sender
-      ? t("homeNoSender")
-      : platform
-        ? t("homeSender", {
-            from: formatFromAddress(sender.fromName, platform),
-            reply: sender.fromEmail,
-          })
-        : t("homeSenderNoFrom", { reply: sender.fromEmail }),
+    senderLine: address
+      ? t("homeSender", { from: address.from })
+      : domain
+        ? t("homeSenderNoFrom", { domain: domain.name })
+        : t("homeNoSender"),
     steps: [t("homeStepBlock"), t("homeStepSender"), t("homeStepNotify")],
     settingsLabel: t("homeSettings"),
     subscribersLabel: t("homeSubscribers"),
