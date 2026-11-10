@@ -22,11 +22,50 @@ function readShop(...values: Array<string | null | undefined>) {
   return null;
 }
 
+function responseStatus(error: unknown) {
+  if (error instanceof Response) return error.status;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status;
+  }
+  return null;
+}
+
+// App proxy HMAC is checked before the offline session is loaded. A later
+// token-refresh failure must not reject the request: saving an email does not
+// need an Admin API token, and a thrown 500 is replaced by Shopify's storefront
+// error page.
+async function shopFromProxy(request: Request) {
+  const url = new URL(request.url);
+  try {
+    const { session } = await authenticate.public.appProxy(request);
+    return {
+      ok: true,
+      shop: readShop(session?.shop, url.searchParams.get("shop")),
+    };
+  } catch (error) {
+    const status = responseStatus(error);
+    if (status === 400 || status === 401) return { ok: false, shop: null };
+    console.error(
+      "app proxy session unavailable",
+      error instanceof Error ? error.name : "unknown",
+    );
+    return { ok: true, shop: readShop(url.searchParams.get("shop")) };
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const t = translate(await localeFromRequest(request));
   const url = new URL(request.url);
   if (url.searchParams.has("signature")) {
-    await authenticate.public.appProxy(request);
+    const proxy = await shopFromProxy(request);
+    if (!proxy.ok) {
+      return json({ success: false, message: t("subBadSignature") }, 401);
+    }
   } else if (process.env.NODE_ENV === "production") {
     return json({ success: false, message: t("subUnauthorized") }, 401);
   }
@@ -48,15 +87,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let trustedShop: string | null = null;
 
   if (hasSignature) {
-    try {
-      const { session } = await authenticate.public.appProxy(request.clone());
-      trustedShop = readShop(session?.shop, url.searchParams.get("shop"));
-    } catch (error) {
-      if (error instanceof Response) {
-        return json({ success: false, message: t("subBadSignature") }, 401);
-      }
-      throw error;
+    const proxy = await shopFromProxy(request);
+    if (!proxy.ok) {
+      return json({ success: false, message: t("subBadSignature") }, 401);
     }
+    trustedShop = proxy.shop;
   } else if (process.env.NODE_ENV === "production") {
     return json({ success: false, message: t("subUnauthorized") }, 401);
   }
@@ -104,6 +139,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ) {
       return json({ success: true, message: tForm("subAlready") });
     }
-    throw error;
+    console.error(
+      "subscribe failed",
+      error instanceof Prisma.PrismaClientKnownRequestError
+        ? error.code
+        : error instanceof Error
+          ? error.name
+          : "unknown",
+    );
+    return json({ success: false, message: tForm("subFailed") });
   }
 };

@@ -273,18 +273,22 @@ export default function SettingsPage() {
                 <Text as="p" variant="bodySm" tone="subdued">
                   {t("settingsDomainLocked")} {domain.region}
                 </Text>
-                <Text as="h3" variant="headingSm">
-                  {t("settingsDnsTitle")}
-                </Text>
-                {domain.records.map((record, index) => (
-                  <DnsRecord
-                    key={`${record.type}-${record.name}-${index}`}
-                    record={record}
-                    t={t}
-                    copied={copied === record.value}
-                    onCopy={copyValue}
-                  />
-                ))}
+                {!verified && (
+                  <>
+                    <Text as="h3" variant="headingSm">
+                      {t("settingsDnsTitle")}
+                    </Text>
+                    {domain.records.map((record, index) => (
+                      <DnsRecord
+                        key={`${record.type}-${record.name}-${index}`}
+                        record={record}
+                        t={t}
+                        copied={copied === record.value}
+                        onCopy={copyValue}
+                      />
+                    ))}
+                  </>
+                )}
                 <InlineStack gap="200">
                   {!verified && (
                     <fetcher.Form method="post">
